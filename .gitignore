@@ -1,0 +1,17 @@
+node_modules/
+config.json
+config.dev.json
+*.pem
+*.key
+service-account*.json
+*.jsonl
+data/
+!test/fixtures/*
+dev/radius-e2e/out/
+dev/radius-e2e/clients/
+radius.env
+*.db
+*.db-*
+*.mobileconfig
+PHA-WiFi.xml
+school-wifi.xml

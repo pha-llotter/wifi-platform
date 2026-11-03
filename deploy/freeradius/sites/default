@@ -1,0 +1,58 @@
+# Outer server: what the vSZ talks to. Only EAP (802.1X) is accepted; the TTLS tunnel
+# is handled here and the login inside it by the inner-tunnel server.
+server default {
+	listen {
+		type = auth
+		ipaddr = *
+		port = 1812
+	}
+
+	listen {
+		type = acct
+		ipaddr = *
+		port = 1813
+	}
+
+	authorize {
+		filter_username
+		preprocess
+		eap {
+			ok = return
+		}
+		# Anything that isn't an 802.1X login is refused.
+		reject
+	}
+
+	authenticate {
+		eap
+	}
+
+	preacct {
+		preprocess
+		acct_unique
+	}
+
+	# The vSZ reports each session's start, regular updates and stop with the bytes used.
+	# They go to the platform for the Usage page; the vSZ is always answered, even if
+	# the platform can't be reached.
+	accounting {
+		platform {
+			fail = 1
+		}
+		ok
+	}
+
+	post-auth {
+		# The VLAN and session length the inner tunnel decided.
+		update {
+			&reply: += &session-state:
+		}
+		remove_reply_message_if_eap
+
+		Post-Auth-Type REJECT {
+			attr_filter.access_reject
+			eap
+			remove_reply_message_if_eap
+		}
+	}
+}

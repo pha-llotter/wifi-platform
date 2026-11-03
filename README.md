@@ -1,0 +1,195 @@
+# PHA WiFi: school Google logins on Ruckus SmartZone, with a VLAN per org unit
+
+People join **PHA-WiFi** with their **school Google username and password**. Their device lands on the VLAN for their Google org unit (for example staff on VLAN 20, learners on VLAN 30), encrypted from the first moment. There's no key, captive portal or website to visit. Visitors without a school account use a small second SSID, **PHA-Guest**, with keys made in the admin dashboard. Printers and other school devices stay on the management network and aren't handled here.
+
+```
+ device ──(1) PHA-WiFi: email + password (WPA2-Enterprise, EAP-TTLS)──▶ vSZ
+ vSZ ──(2) RADIUS──▶ FreeRADIUS (on the platform server, UDP 1812)
+ FreeRADIUS ──(3) is the password right?──▶ Google Secure LDAP (ldaps://ldap.google.com)
+ FreeRADIUS ──(4) only if it is: "may t.smith@phahs.org.za connect, and on which VLAN?"──▶ platform (local API)
+     platform checks: allowed domain · not blocked · Google directory: active, org unit · rules → VLAN 20
+ FreeRADIUS ──(5) Access-Accept + VLAN 20──▶ vSZ ──▶ device online on VLAN 20
+```
+
+- **Passwords stay with Google.** The device sends the password inside a TLS tunnel that only FreeRADIUS can open. FreeRADIUS checks it with Google and never passes it to the platform.
+- **Bare usernames work.** `t.smith` becomes `t.smith@phahs.org.za`, and `PHAHS\t.smith` works too.
+- **Changes reach connected devices.** Devices log in again every `radius.sessionTimeout` (12 hours by default), so blocks, suspensions, OU moves and rule changes reach everyone within that time. A changed Google password also applies from their next login; to cut someone off at once, block them and then disconnect their device from the vSZ's wireless client list.
+- **Data used per person.** The vSZ reports each session's bytes through RADIUS accounting, so the dashboard shows who's online and how much each person and device used. It shows the amount only, not which sites.
+- **The admin dashboard** (`https://wifi.phahs.org.za/admin`, PHA design) shows who logged in from which device and VLAN, who was turned away and why, data used, the rules, blocks, guest keys, health, backups and alerts.
+
+## The parts
+
+| Part | Runs | Does |
+|---|---|---|
+| **FreeRADIUS 3.2** (`deploy/freeradius`) | Docker, on the platform server | EAP-TTLS for PHA-WiFi; checks passwords against Google Secure LDAP; asks the platform for the VLAN |
+| **Platform** (`src/`) | Docker, on the same server | The VLAN decision (`/radius/*`, local only), the admin dashboard, visitor keys on PHA-Guest via the vSZ API |
+| **Caddy** | Docker, on the same server | HTTPS for the dashboard, and a Let's Encrypt certificate for `radius.phahs.org.za`, which devices see when logging in |
+| **Google Workspace** | Google | Secure LDAP for passwords, the Directory API for org units and status, OAuth for admin sign-in, optional Gmail alerts |
+| **vSZ** | School | PHA-WiFi (802.1X to FreeRADIUS, dynamic VLAN) and PHA-Guest (DPSK keys) |
+
+## Setup
+
+### 1. Server and DNS
+
+A small Linux VPS with Docker; 1 vCPU and 1 GB RAM is plenty. Point two DNS **A records** at it:
+- `wifi.phahs.org.za` for the dashboard;
+- `radius.phahs.org.za` for the login certificate.
+
+Firewall:
+
+| Port | From | For |
+|---|---|---|
+| TCP 80, 443 | anywhere | Dashboard, and Let's Encrypt for both names |
+| UDP 1812, 1813 | **the school's public IP only** | RADIUS from the vSZ |
+| TCP 22 | your admin IPs | SSH |
+
+### 2. Google Workspace (Education Fundamentals includes all of this)
+
+1. **Secure LDAP client.** In the Admin console go to **Apps → LDAP → Add client**, for example "WiFi RADIUS".
+   - Access permissions: **Verify user credentials** for the whole domain, and **Read user information** for the whole domain.
+   - Download the **certificate** and save the `.crt` and `.key` as `/etc/wifi-portal/google-ldap/ldap-client.crt` and `ldap-client.key`.
+   - Set the client's **Service status** to **On**.
+2. **OAuth client for admin sign-in.** In Google Cloud create a project, set **Google Auth Platform → Audience** to **Internal**, then create a **Web application** client with the redirect URI `https://wifi.phahs.org.za/admin/oauth/callback`. Put its ID and secret in `google.clientId` and `google.clientSecret`.
+3. **Directory lookup** (org units, suspended accounts):
+   - Enable the **Admin SDK API**.
+   - Create a **service account** with no roles and a JSON key, saved as `/etc/wifi-portal/service-account.json`.
+   - In **Security → API controls → Domain-wide delegation**, add its client ID with the scope `https://www.googleapis.com/auth/admin.directory.user.readonly`.
+   - Set `google.directory.adminEmail` to an admin user.
+4. **Alert emails** (optional). These are sent through the Gmail API, not SMTP, so there's no mail server or app password to set up.
+   - In the same Cloud project, enable the **Gmail API**.
+   - Add `https://www.googleapis.com/auth/gmail.send` to the service account's domain-wide delegation entry. The entry's scopes become `https://www.googleapis.com/auth/admin.directory.user.readonly,https://www.googleapis.com/auth/gmail.send`.
+   - Pick the mailbox alerts come from, for example `wifi-alerts@phahs.org.za`. It must be a real Workspace user, because the service account sends as that user. It can send only, and can't read mail.
+   - Set `alerts.from` to that mailbox and `alerts.to` to the people who should hear about problems.
+
+### 3. The vSZ
+
+1. **PHA-WiFi** (school SSID):
+   - **Authentication:** 802.1X EAP, encryption **WPA2** (or WPA2/WPA3), authentication service: a new **RADIUS** service pointing at the server's IP on port **1812**, with the shared secret from `radius.env`.
+   - **Accounting** (for the Usage page): a **RADIUS Accounting** service pointing at the same server on port **1813** with the same secret, with an **interim update** interval of about **10 minutes**. Shorter intervals make figures fresher but send more traffic. Attach it to PHA-WiFi, and to PHA-Guest too if your vSZ allows accounting on a DPSK WLAN. Guests then show under their key's name.
+   - **Dynamic VLAN:** turn it on (AAA override), so the VLAN from RADIUS applies. The VLANs your rules use must reach the APs.
+   - **Fast roaming:** turn on **802.11r** and/or **OKC / PMK caching**. Devices then don't do a full login, and a Google check, every time they move between APs. This matters for Google's [Secure LDAP quotas](https://support.google.com/a/answer/9048516).
+2. **PHA-Guest** (guest SSID): a WPA2 WLAN with **Dynamic PSK** enabled and expiration **Unlimited** (the platform ends guest keys itself). Use a DPSK key length of about 12–16 characters, so keys can be typed off a slip.
+3. **API account and firewall for PHA-Guest keys:** create a vSZ admin account for the platform, and allow **TCP 8443** to the vSZ from the server's IP only.
+
+### 4. Install
+
+```bash
+git clone <this repo> /opt/wifi-portal && cd /opt/wifi-portal
+sudo mkdir -p /etc/wifi-portal/google-ldap /var/log/wifi-portal /var/lib/wifi-portal
+sudo cp config.example.json /etc/wifi-portal/config.json               # fill in
+sudo cp deploy/freeradius/radius.env.example /etc/wifi-portal/radius.env  # fill in
+sudo chown 1000 /var/log/wifi-portal /var/lib/wifi-portal
+```
+
+Then copy in the Google files (step 2) and set permissions. The platform runs as uid 1000 and reads config.json, the service account key and the LDAP certificate (for **Check connections**). radius.env is read by Docker as root only.
+
+```bash
+cd /etc/wifi-portal
+sudo chown root:1000 config.json service-account.json google-ldap google-ldap/*
+sudo chmod 640 config.json service-account.json google-ldap/*
+sudo chmod 750 google-ldap
+sudo chown root:root radius.env && sudo chmod 600 radius.env
+```
+
+- **Shared token:** generate one with `openssl rand -hex 32` and put it in both `radius.apiToken` (config.json) and `PLATFORM_TOKEN` (radius.env).
+- **RADIUS secret:** generate a second one the same way for `RADIUS_SECRET`, and set the same secret on the vSZ RADIUS service.
+- **VSZ_ADDRESS:** set it to the school's public IP.
+- **PHA-Guest settings:** run `docker compose run --rm wifi-portal node scripts/vsz-wlans.js /etc/wifi-portal/config.json` for `dpsk.zoneId` and `dpsk.wlanId`, and `… scripts/vsz-fingerprint.js …` for `dpsk.tlsFingerprint`. The platform won't start without the fingerprint, because the vSZ API password crosses the internet. Compare it with the certificate shown in the vSZ web console (padlock → certificate → SHA-256) before trusting it.
+
+Then start everything:
+
+```bash
+docker compose up -d --build
+docker compose logs -f freeradius wifi-portal
+```
+
+Caddy gets both certificates within a minute. FreeRADIUS restarts once a day, which also picks up renewed certificates. On the very first start FreeRADIUS waits for Caddy's certificate before it starts. To see every login in detail while setting up, set `RADIUS_DEBUG=1` in radius.env and run `docker compose up -d freeradius`.
+
+**Check it works**, before touching the vSZ:
+
+1. **Connections:** in the dashboard, **Settings → Check connections**, or on the server:
+   `docker compose exec wifi-portal node scripts/check-connections.js /etc/wifi-portal/config.json`.
+   It tries the Google directory, Google Secure LDAP with the client certificate, the vSZ API, and sends a test alert email (`--no-email` skips it), and says what's wrong for any that fail.
+2. **A real login:** `sudo ./scripts/test-login.sh you@phahs.org.za` logs in to FreeRADIUS on the server the way a phone does (EAP-TTLS/PAP, checking the certificate name) and prints the VLAN it got. It asks for the password, which never appears on the command line. The first run builds a small `eapol_test` image.
+
+**Monitoring:** `docker compose ps` shows each container's health (the platform answers `/healthz`; FreeRADIUS answers a local Status-Server check). Point an uptime monitor (for example Uptime Kuma, or your RMM) at `https://wifi.phahs.org.za/healthz`. Docker's logs are capped at 5 × 20 MB per container, and `wifi.jsonl` rotates at 50 MB, keeping 5 old copies.
+
+### 5. Connecting devices
+
+| Device | How |
+|---|---|
+| **iPhone, iPad, Mac** | Install the setup profile: run `docker compose run --rm wifi-portal node scripts/apple-profile.js /etc/wifi-portal/config.json /etc/wifi-portal/PHA-WiFi.mobileconfig` and share the file by **email or AirDrop**. Opening it installs PHA-WiFi and asks for the email and password once. Without the profile, Apple devices send the password in a form Google can't check, so they won't connect. |
+| **Android** | WiFi → PHA-WiFi → EAP method **TTLS**, Phase 2 **PAP**, CA certificate **Use system certificates**, Domain **radius.phahs.org.za** (required), Identity: school email, Password. Leave anonymous identity empty. |
+| **Windows 10/11** | Install the WiFi profile: run `docker compose run --rm wifi-portal node scripts/windows-profile.js /etc/wifi-portal/config.json /etc/wifi-portal/PHA-WiFi.xml`, then on each laptop `netsh wlan add profile filename="PHA-WiFi.xml" user=all` (or deploy it with Intune or Group Policy). Connect and enter the email and password once. |
+| **Chromebook** | WiFi → PHA-WiFi → EAP method **EAP-TTLS**, Phase 2 **PAP**, Server CA **Default**, Subject match / Domain **radius.phahs.org.za**, Identity and password. For managed Chromebooks, push the same settings from the Admin console (**Devices → Networks → Wi-Fi**). |
+
+**Always set devices up this way, never by hand.** Inside the encrypted tunnel the password is sent as is (PAP, because Google can only check plain passwords). That's safe only when the device checks it is talking to `radius.phahs.org.za`. A device set up by hand, especially Windows ("Continue connecting?"), will hand the password to a fake access point with the same name. The profiles and the Android/Chromebook **Domain** setting prevent that. Turning on **2-Step Verification** for staff limits the damage if a password does leak.
+
+## Rules
+
+Rules are checked from top to bottom, and the first match wins. A rule matches on `orgUnit` (that OU and everything under it) and/or `email` (a regex), then either lets people on with a `vlanId` or turns them away (`deny`, with a `message`). Edit them in the dashboard's **Rules** page; the example config starts with:
+
+```json
+"policy": {
+  "rules": [
+    { "name": "Shared accounts", "email": "^(exam|shared)\\.", "deny": true, "message": "Shared accounts can't use the school WiFi." },
+    { "name": "Staff",    "orgUnit": "/Staff",    "vlanId": 20 },
+    { "name": "Students", "orgUnit": "/Students", "vlanId": 30 }
+  ],
+  "default": null
+}
+```
+
+`"default": null` turns away anyone no rule matched. Personal Gmail and other domains are always turned away. So are suspended, archived and deleted Google accounts, and anyone blocked in the dashboard.
+
+## Admin dashboard
+
+`https://wifi.phahs.org.za/admin`, signed in with Google. Only `admin.emails` get in.
+
+| Page | What it's for |
+|---|---|
+| **Overview** | People and devices logged in today, people turned away, guest SSID keys, problems. Health shows whether logins are arriving from FreeRADIUS, the Google directory, the vSZ API, backups and alerts. Also lists the latest logins. |
+| **Activity** | Every login (once per device per day), every refusal with its reason (wrong password, blocked, suspended, rule, wrong domain), key changes and admin actions. |
+| **People** | Everyone who has logged in or been turned away, with their devices, VLAN, **data used per day for 30 days**, sessions and history. **Block** turns someone away at their next login. |
+| **Usage** | Data downloaded and uploaded today, over 7 days or over 30 days: the top 50 people, totals per VLAN, and everyone online now with their device, IP and data this session. CSV export. |
+| **Guests** | Make a visitor key on PHA-Guest for 1–`maxGuestDays` days and print or show the slip. **Reset** frees a key for another phone; **End** stops it early. |
+| **Rules** | Allowed domains, plus rules from org unit to VLAN. |
+| **Settings** | Name, the **daily usage alert** level, record retention, platform facts, and tools: back up now, adopt keys from the vSZ, export usage, logins and keys as CSV. |
+
+Everything is kept in `/var/lib/wifi-portal/wifi-portal.db`, with a copy every night in `backups/`; the last 14 are kept. Copy that folder off the server too.
+
+## Usage
+
+- **How the figures work:** each session's counters arrive with the vSZ's interim updates. The platform adds the growth since the last report to that day's total, per person and device. Sessions over 4 GB are counted correctly (gigawords). If the vSZ restarts, its open sessions are closed.
+- **Lag:** figures lag by up to one interim interval. "Online now" means a session reported within the last `radius.accountingStaleMinutes` (30).
+- **The alert:** set a **daily usage alert** under Settings (or `usage.alertGb` in config) and IT gets an email, plus an entry in Activity → High usage, the first time someone passes it each day.
+- **Privacy:** usage is personal information under POPIA. It follows the same `retentionDays` as everything else and is visible only to dashboard admins.
+
+## If something is down
+
+- **The platform** (`wifi-portal`) down: FreeRADIUS follows `FALLBACK_VLAN`. Empty means no new logins; a VLAN number lets anyone with a correct Google password on to that VLAN, with blocks and rules skipped until the platform is back. Devices that are already connected stay connected either way.
+- **The platform answers but refuses FreeRADIUS** (the token in radius.env and config.json differ, or a wrong `PLATFORM_URL`): every login is refused, never let through without the rules. Activity stays empty and Overview → Health says FreeRADIUS hasn't called.
+- **Google** down or over quota: no new logins. Connected devices stay on until their session ends. You get an alert email.
+- **The vSZ API** down: only PHA-Guest key changes wait.
+
+## Testing
+
+- `npm test`: unit tests for the VLAN decision API, usage accounting, rules, dashboard, guest keys, backups, alerts and vSZ certificate pinning.
+- `npm run test:radius` (needs Docker): real WPA2-Enterprise logins with `eapol_test` against FreeRADIUS built from `deploy/freeradius`. An OpenLDAP server stands in for Google. It checks:
+  - staff and learners land on their VLANs;
+  - wrong passwords, blocked people, rule-denied and unknown accounts are refused;
+  - the dashboard records each outcome;
+  - the password never reaches the platform;
+  - the Access-Accept carries the real login name, and accounting sent to port 1813 is recorded as usage;
+  - the Docker health check answers;
+  - a token mismatch between FreeRADIUS and the platform refuses logins.
+
+## Things to check when going live
+
+- **Google Secure LDAP:** the client is **On** and has both permissions. The first login of the day may take a second or two.
+- **Dynamic VLAN on PHA-WiFi:** people on different rules really end up on different VLANs. The **Overview** and **People** pages show the VLAN each login was given.
+- **Certificate on Android:** set **Domain** to exactly `radius.phahs.org.za`. Older Android versions without that field must use "Do not validate", which is weaker.
+- **Quotas:** watch for `directory_error` alerts in the first busy week, and keep fast roaming on.
+- **RADIUS across the internet:** the vSZ reaches FreeRADIUS over the internet, protected by the shared secret and the school-IP firewall rule. Use a long random secret (`openssl rand -hex 32`). If the vSZ and the server can share a VPN (WireGuard or IPsec), sending RADIUS through it is better still.
+- **Dashboard access:** set `admin.allowFrom` to the school's public IP (and yours) if admins only use it from known places.
+- **vSZ API account:** give the platform's vSZ account the smallest role that can manage DPSKs on PHA-Guest.

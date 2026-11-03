@@ -1,0 +1,60 @@
+# Docker keeps each container's output; cap it so it can't fill the disk.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 20m
+    max-file: "5"
+
+services:
+  # Dashboard and the local API FreeRADIUS asks for each person's VLAN.
+  wifi-portal:
+    build: .
+    restart: unless-stopped
+    # Host networking: listens on 127.0.0.1 only, behind Caddy and next to FreeRADIUS.
+    network_mode: host
+    logging: *logging
+    volumes:
+      - /etc/wifi-portal:/etc/wifi-portal:ro
+      - /var/log/wifi-portal:/var/log/wifi-portal
+      - /var/lib/wifi-portal:/var/lib/wifi-portal
+    # Port 8080 is http.port in config.json.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # 802.1X logins for the school SSID: the vSZ sends RADIUS here (UDP 1812/1813).
+  freeradius:
+    build: ./deploy/freeradius
+    restart: unless-stopped
+    network_mode: host
+    logging: *logging
+    env_file: /etc/wifi-portal/radius.env
+    depends_on: [wifi-portal, caddy]
+    volumes:
+      # The server certificate Caddy gets for the RADIUS name, and Google's LDAP client certificate.
+      - caddy-data:/caddy:ro
+      - /etc/wifi-portal/google-ldap:/google:ro
+    # Status-Server to the local status listener (sites/status).
+    healthcheck:
+      test: ["CMD-SHELL", "echo 'Message-Authenticator = 0x00' | radclient -q -r 1 -t 3 127.0.0.1:18121 status \"$$RADIUS_SECRET\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5m
+
+  # HTTPS for the dashboard, and the Let's Encrypt certificate FreeRADIUS presents to devices.
+  caddy:
+    image: caddy:2.8
+    restart: unless-stopped
+    network_mode: host
+    logging: *logging
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  caddy-data:
+  caddy-config:

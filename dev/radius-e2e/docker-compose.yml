@@ -1,0 +1,61 @@
+# End-to-end test of the school SSID login: eapol_test (a WiFi client) → FreeRADIUS
+# (deploy/freeradius) → OpenLDAP standing in for Google Secure LDAP, with FreeRADIUS
+# asking the platform (running on the host) for the VLAN. Run with: npm run test:radius
+services:
+  openldap:
+    image: osixia/openldap:1.5.0
+    networks: [e2e]
+    command: --copy-service
+    environment:
+      LDAP_DOMAIN: phahs.org.za
+      LDAP_ADMIN_PASSWORD: admin
+      LDAP_TLS: "false"
+    volumes:
+      - ./users.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/50-users.ldif:ro
+
+  freeradius:
+    build: ../../deploy/freeradius
+    depends_on: [openldap]
+    networks:
+      e2e:
+        ipv4_address: 172.31.250.10
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    environment:
+      VSZ_ADDRESS: 0.0.0.0/0
+      RADIUS_SECRET: testing123
+      DEFAULT_DOMAIN: phahs.org.za
+      LDAP_SERVER: ldap://openldap
+      LDAP_PORT: "389"
+      LDAP_BASE_DN: dc=phahs,dc=org,dc=za
+      # Google identifies the server by certificate; this stand-in uses a bind account.
+      LDAP_IDENTITY: cn=admin,dc=phahs,dc=org,dc=za
+      LDAP_PASSWORD: admin
+      LDAP_REQUIRE_CERT: never
+      PLATFORM_URL: http://host.docker.internal:18099
+      PLATFORM_TOKEN: e2e-token-0123456789abcdef
+      TLS_CERT: /certs/server.pem
+      TLS_KEY: /certs/server.key
+      LDAP_CLIENT_CERT: /certs/client.pem
+      LDAP_CLIENT_KEY: /certs/client.key
+      FALLBACK_VLAN: ""
+      RADIUS_DEBUG: ${RADIUS_DEBUG:-0}
+    volumes:
+      - ./out:/certs:ro
+
+  eapol:
+    build:
+      context: .
+      dockerfile: eapol.Dockerfile
+    depends_on: [freeradius]
+    networks: [e2e]
+    volumes:
+      - ./clients:/conf:ro
+      - ./out:/certs:ro
+    entrypoint: ["eapol_test"]
+
+networks:
+  e2e:
+    ipam:
+      config:
+        - subnet: 172.31.250.0/24

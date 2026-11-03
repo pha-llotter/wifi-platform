@@ -1,0 +1,47 @@
+# Google Secure LDAP: finds the account by email, then checks the password by binding
+# as that account. Google identifies this server by its LDAP client certificate (made
+# in the Admin console), so no bind identity is needed (LDAP_IDENTITY stays empty).
+ldap {
+	server = "$ENV{LDAP_SERVER}"
+	port = $ENV{LDAP_PORT}
+	identity = "$ENV{LDAP_IDENTITY}"
+	password = "$ENV{LDAP_PASSWORD}"
+	base_dn = "$ENV{LDAP_BASE_DN}"
+
+	user {
+		base_dn = "${..base_dn}"
+		filter = "(mail=%{%{Stripped-User-Name}:-%{User-Name}})"
+		scope = "sub"
+	}
+
+	options {
+		chase_referrals = no
+		rebind = no
+		res_timeout = 10
+		srv_timelimit = 5
+		net_timeout = 5
+		idle = 60
+		probes = 3
+		interval = 3
+		ldap_debug = 0x0000
+	}
+
+	tls {
+		start_tls = no
+		ca_path = /etc/ssl/certs
+		certificate_file = /etc/freeradius/google/ldap-client.crt
+		private_key_file = /etc/freeradius/google/ldap-client.key
+		require_cert = "$ENV{LDAP_REQUIRE_CERT}"
+	}
+
+	pool {
+		start = 0
+		min = 0
+		max = 16
+		spare = 4
+		uses = 0
+		retry_delay = 30
+		lifetime = 0
+		idle_timeout = 60
+	}
+}

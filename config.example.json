@@ -1,0 +1,71 @@
+{
+  "publicUrl": "https://wifi.phahs.org.za",
+  "http": { "host": "127.0.0.1", "port": 8080 },
+  "trustProxy": true,
+
+  "google": {
+    "clientId": "000000000000-xxxxxxxxxxxxxxxx.apps.googleusercontent.com",
+    "clientSecret": "GOCSPX-xxxxxxxxxxxxxxxxxxxx",
+    "allowedDomains": ["phahs.org.za"],
+    "directory": {
+      "enabled": true,
+      "serviceAccountKeyFile": "/etc/wifi-portal/service-account.json",
+      "adminEmail": "wifi-portal-admin@phahs.org.za"
+    }
+  },
+
+  "radius": {
+    "ssid": "PHA-WiFi",
+    "apiToken": "the same long random token as PLATFORM_TOKEN in radius.env",
+    "sessionTimeout": 43200
+  },
+
+  "policy": {
+    "rules": [
+      { "name": "Shared accounts", "email": "^(exam|shared)\\.", "deny": true, "message": "Shared accounts can't use the school WiFi." },
+      { "name": "Staff", "orgUnit": "/Staff", "vlanId": 20 },
+      { "name": "Students", "orgUnit": "/Students", "vlanId": 30 }
+    ],
+    "default": null
+  },
+
+  "dpsk": {
+    "ssid": "PHA-Guest",
+    "host": "203.0.113.10",
+    "port": 8443,
+    "apiVersion": "v9_1",
+    "username": "wifi-portal-api",
+    "password": "the-vsz-api-account-password",
+    "tlsFingerprint": "run npm run vsz:fingerprint and paste the fingerprint here",
+    "zoneId": "run npm run vsz:wlans to find this",
+    "wlanId": "run npm run vsz:wlans to find this",
+    "guestVlanId": 50,
+    "maxGuestDays": 30
+  },
+
+  "usage": {
+    "alertGb": 5
+  },
+
+  "alerts": {
+    "from": "wifi-alerts@phahs.org.za",
+    "to": ["llotter@phahs.org.za"]
+  },
+
+  "backup": { "keep": 14 },
+
+  "branding": {
+    "name": "PHA WiFi",
+    "school": "Protea Heights Academy",
+    "motto": "Fides · Bonitatem · Perseverantia"
+  },
+
+  "admin": {
+    "emails": ["llotter@phahs.org.za"],
+    "allowFrom": []
+  },
+
+  "database": "/var/lib/wifi-portal/wifi-portal.db",
+  "retentionDays": 90,
+  "logFile": "/var/log/wifi-portal/wifi.jsonl"
+}

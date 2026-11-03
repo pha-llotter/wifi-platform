@@ -1,0 +1,35 @@
+dn: ou=Users,dc=phahs,dc=org,dc=za
+objectClass: organizationalUnit
+ou: Users
+
+dn: uid=t.smith,ou=Users,dc=phahs,dc=org,dc=za
+objectClass: inetOrgPerson
+uid: t.smith
+cn: T Smith
+sn: Smith
+mail: t.smith@phahs.org.za
+userPassword: Staff-Pass-1
+
+dn: uid=pupil,ou=Users,dc=phahs,dc=org,dc=za
+objectClass: inetOrgPerson
+uid: pupil
+cn: A Pupil
+sn: Pupil
+mail: pupil@phahs.org.za
+userPassword: Pupil-Pass-1
+
+dn: uid=exam.room1,ou=Users,dc=phahs,dc=org,dc=za
+objectClass: inetOrgPerson
+uid: exam.room1
+cn: Exam Room
+sn: Room
+mail: exam.room1@phahs.org.za
+userPassword: Exam-Pass-1
+
+dn: uid=blocked.user,ou=Users,dc=phahs,dc=org,dc=za
+objectClass: inetOrgPerson
+uid: blocked.user
+cn: Blocked User
+sn: User
+mail: blocked.user@phahs.org.za
+userPassword: Blocked-Pass-1

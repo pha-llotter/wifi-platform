@@ -1,0 +1,24 @@
+{
+  "name": "wifi-portal",
+  "version": "0.2.0",
+  "private": true,
+  "description": "School WiFi with Google Workspace logins (802.1X via FreeRADIUS and Secure LDAP) on Ruckus SmartZone, a VLAN per org unit, and visitor keys",
+  "type": "module",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js config.dev.json",
+    "fake-vsz": "node dev/fake-vsz.js",
+    "vsz:wlans": "node scripts/vsz-wlans.js",
+    "vsz:fingerprint": "node scripts/vsz-fingerprint.js",
+    "apple-profile": "node scripts/apple-profile.js",
+    "test": "node --test test/*.test.js",
+    "test:radius": "node dev/radius-e2e/run.mjs",
+    "check": "node scripts/check-connections.js",
+    "test:login": "bash scripts/test-login.sh",
+    "windows-profile": "node scripts/windows-profile.js"
+  }
+}

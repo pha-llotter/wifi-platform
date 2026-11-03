@@ -1,0 +1,84 @@
+# The WiFi platform's local API (src/radius-api.js). It decides whether the person may
+# connect and on which VLAN, records each login, and collects accounting (data used)
+# for the Usage page. Only the username, device details and counters are sent, never
+# the password.
+rest platform {
+	connect_uri = "$ENV{PLATFORM_URL}"
+	connect_timeout = 3.0
+
+	authorize {
+		uri = "${..connect_uri}/radius/authorize"
+		method = "post"
+		body = "post"
+		data = "User-Name=%{urlquote:%{User-Name}}&Calling-Station-Id=%{urlquote:%{outer.request:Calling-Station-Id}}&Called-Station-Id=%{urlquote:%{outer.request:Called-Station-Id}}"
+		auth = "basic"
+		username = "radius"
+		password = "$ENV{PLATFORM_TOKEN}"
+		require_auth = yes
+		timeout = 5.0
+	}
+
+	accounting {
+		uri = "${..connect_uri}/radius/accounting"
+		method = "post"
+		body = "post"
+		data = "User-Name=%{urlquote:%{User-Name}}&Calling-Station-Id=%{urlquote:%{Calling-Station-Id}}&Called-Station-Id=%{urlquote:%{Called-Station-Id}}&Framed-IP-Address=%{urlquote:%{Framed-IP-Address}}&NAS-IP-Address=%{urlquote:%{NAS-IP-Address}}&NAS-Identifier=%{urlquote:%{NAS-Identifier}}&Acct-Status-Type=%{urlquote:%{Acct-Status-Type}}&Acct-Session-Id=%{urlquote:%{Acct-Session-Id}}&Acct-Session-Time=%{urlquote:%{Acct-Session-Time}}&Acct-Input-Octets=%{urlquote:%{Acct-Input-Octets}}&Acct-Output-Octets=%{urlquote:%{Acct-Output-Octets}}&Acct-Input-Gigawords=%{urlquote:%{Acct-Input-Gigawords}}&Acct-Output-Gigawords=%{urlquote:%{Acct-Output-Gigawords}}&Acct-Terminate-Cause=%{urlquote:%{Acct-Terminate-Cause}}"
+		auth = "basic"
+		username = "radius"
+		password = "$ENV{PLATFORM_TOKEN}"
+		require_auth = yes
+		timeout = 5.0
+	}
+
+	post-auth {
+		uri = "${..connect_uri}/radius/post-auth?result=accept"
+		method = "post"
+		body = "post"
+		data = "User-Name=%{urlquote:%{User-Name}}&Calling-Station-Id=%{urlquote:%{outer.request:Calling-Station-Id}}&Called-Station-Id=%{urlquote:%{outer.request:Called-Station-Id}}&Tunnel-Private-Group-Id=%{urlquote:%{reply:Tunnel-Private-Group-Id}}"
+		auth = "basic"
+		username = "radius"
+		password = "$ENV{PLATFORM_TOKEN}"
+		require_auth = yes
+		timeout = 5.0
+	}
+
+	pool {
+		start = 0
+		min = 0
+		max = 16
+		spare = 4
+		uses = 0
+		retry_delay = 30
+		lifetime = 0
+		idle_timeout = 60
+	}
+}
+
+# Records refused logins (wrong password, unknown account) for the dashboard.
+rest platform_reject {
+	connect_uri = "$ENV{PLATFORM_URL}"
+	connect_timeout = 3.0
+
+	post-auth {
+		uri = "${..connect_uri}/radius/post-auth?result=reject"
+		method = "post"
+		body = "post"
+		data = "User-Name=%{urlquote:%{User-Name}}&Calling-Station-Id=%{urlquote:%{outer.request:Calling-Station-Id}}&Called-Station-Id=%{urlquote:%{outer.request:Called-Station-Id}}"
+		auth = "basic"
+		username = "radius"
+		password = "$ENV{PLATFORM_TOKEN}"
+		require_auth = yes
+		timeout = 5.0
+	}
+
+	pool {
+		start = 0
+		min = 0
+		max = 8
+		spare = 2
+		uses = 0
+		retry_delay = 30
+		lifetime = 0
+		idle_timeout = 60
+	}
+}

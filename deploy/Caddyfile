@@ -1,0 +1,13 @@
+# The admin dashboard. The /radius API is for FreeRADIUS on this server only, never
+# through the public site.
+wifi.phahs.org.za {
+	@radiusapi path /radius/*
+	respond @radiusapi 404
+	reverse_proxy 127.0.0.1:8080
+}
+
+# Only here so Caddy gets and renews a trusted certificate for this name, which
+# FreeRADIUS presents to devices when they log in to the school SSID.
+radius.phahs.org.za {
+	respond "This name is used for the school WiFi login certificate." 200
+}

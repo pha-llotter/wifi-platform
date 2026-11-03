@@ -1,0 +1,81 @@
+# Inside the TTLS tunnel: the person's username and password (PAP).
+#   1. "t.smith" becomes "t.smith@<DEFAULT_DOMAIN>".
+#   2. Google Secure LDAP checks the password.
+#   3. Only then does the platform say whether they may connect and on which VLAN (from
+#      their org unit), so nobody can make it look up accounts without a valid password.
+server inner-tunnel {
+	listen {
+		ipaddr = 127.0.0.1
+		port = 18120
+		type = auth
+	}
+
+	authorize {
+		filter_username
+
+		if (&User-Name && (&User-Name !~ /@/)) {
+			update request {
+				&User-Name := "%{User-Name}@$ENV{DEFAULT_DOMAIN}"
+			}
+		}
+
+		if (!&User-Password) {
+			reject
+		}
+		update control {
+			&Auth-Type := LDAP
+		}
+	}
+
+	authenticate {
+		Auth-Type LDAP {
+			ldap
+		}
+	}
+
+	post-auth {
+		# The password is right. Now the platform decides: 200 → allowed (VLAN in the
+		# reply); anything else (401 refused, or a 4xx from a wrong token or URL) → refused.
+		# Only if the platform can't be reached at all does FALLBACK_VLAN decide: empty
+		# refuses everyone, a VLAN number lets people on to that VLAN until it's back.
+		platform.authorize {
+			fail = 1
+		}
+		if (fail) {
+			if ("$ENV{FALLBACK_VLAN}" != "") {
+				update reply {
+					&Tunnel-Type := VLAN
+					&Tunnel-Medium-Type := IEEE-802
+					&Tunnel-Private-Group-Id := "$ENV{FALLBACK_VLAN}"
+				}
+			}
+			else {
+				reject
+			}
+		}
+		elsif (!ok && !updated) {
+			reject
+		}
+
+		# Handed to the outer server, which sends them to the vSZ. User-Name is the real
+		# login (not the "anonymous" outer identity), so the vSZ's accounting reports
+		# usage under the right person.
+		update outer.session-state {
+			&User-Name := &request:User-Name
+			&Tunnel-Type := &reply:Tunnel-Type
+			&Tunnel-Medium-Type := &reply:Tunnel-Medium-Type
+			&Tunnel-Private-Group-Id := &reply:Tunnel-Private-Group-Id
+			&Session-Timeout := &reply:Session-Timeout
+		}
+		# Records the login for the dashboard.
+		platform {
+			fail = 1
+		}
+
+		Post-Auth-Type REJECT {
+			platform_reject {
+				fail = 1
+			}
+		}
+	}
+}

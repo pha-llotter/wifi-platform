@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>WiFi admin</title>
+<link rel="icon" href="/admin/crest-128.png">
+<link rel="stylesheet" href="/admin/app.css">
+</head>
+<body>
+<div class="app">
+  <header class="app-header">
+    <div class="app-header-inner">
+      <a class="brand" href="#overview">
+        <img src="/admin/crest-128.png" alt="">
+        <span class="brand-text">
+          <span class="brand-name">WiFi <span>Admin</span></span>
+          <span class="brand-school" id="school"></span>
+        </span>
+      </a>
+      <nav class="mainnav" aria-label="Sections">
+        <a href="#overview" data-view="overview">Overview</a>
+        <a href="#activity" data-view="activity">Activity</a>
+        <a href="#people" data-view="people">People</a>
+        <a href="#usage" data-view="usage">Usage</a>
+        <a href="#guests" data-view="guests">Guests</a>
+        <a href="#rules" data-view="rules">Rules</a>
+        <a href="#settings" data-view="settings">Settings</a>
+      </nav>
+      <div class="header-right">
+        <div class="user-chip">
+          <span class="avatar" id="avatar" aria-hidden="true"></span>
+          <span class="who"><span id="me"></span><small>Administrator</small></span>
+        </div>
+        <button type="button" id="logout" class="header-btn">Sign out</button>
+      </div>
+    </div>
+  </header>
+  <main id="view" class="app-main" tabindex="-1" aria-live="polite"></main>
+  <footer class="app-footer">
+    <span id="network">WiFi</span>
+    <span class="motto" id="motto"></span>
+  </footer>
+</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script type="module" src="/admin/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+[Unit]
+Description=WiFi portal (Google sign-in for Ruckus SmartZone)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=wifi-portal
+Group=wifi-portal
+WorkingDirectory=/opt/wifi-portal
+ExecStart=/usr/bin/node src/server.js /etc/wifi-portal/config.json
+Restart=on-failure
+RestartSec=3
+
+# Lets an unprivileged user listen on 80/443.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/log/wifi-portal /var/lib/wifi-portal
+
+[Install]
+WantedBy=multi-user.target

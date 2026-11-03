@@ -1,0 +1,37 @@
+{
+  "publicUrl": "http://localhost:8080",
+  "http": { "port": 8080 },
+
+  "google": {
+    "clientId": "000000000000-xxxxxxxxxxxxxxxx.apps.googleusercontent.com",
+    "clientSecret": "GOCSPX-xxxxxxxxxxxxxxxxxxxx",
+    "allowedDomains": ["phahs.org.za"]
+  },
+
+  "radius": { "apiToken": "dev-token-0123456789abcdef" },
+
+  "policy": {
+    "rules": [{ "name": "Everyone", "vlanId": 20 }],
+    "default": null
+  },
+
+  "dpsk": {
+    "ssid": "PHA-Guest",
+    "host": "127.0.0.1",
+    "port": 18443,
+    "protocol": "http",
+    "username": "dev",
+    "password": "dev",
+    "zoneId": "zone-1",
+    "wlanId": "wlan-1"
+  },
+
+  "admin": { "emails": ["llotter@phahs.org.za"] },
+  "database": "data/dev.db",
+
+  "branding": {
+    "name": "PHA WiFi (dev)",
+    "school": "Protea Heights Academy",
+    "motto": "Fides · Bonitatem · Perseverantia"
+  }
+}

@@ -1,0 +1,20 @@
+# Answers Status-Server on 127.0.0.1 only, for the Docker health check.
+server status {
+	listen {
+		type = status
+		ipaddr = 127.0.0.1
+		port = 18121
+	}
+
+	client healthcheck {
+		ipaddr = 127.0.0.1
+		secret = $ENV{RADIUS_SECRET}
+	}
+
+	authorize {
+		ok
+		Autz-Type Status-Server {
+			ok
+		}
+	}
+}
