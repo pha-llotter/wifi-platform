@@ -336,9 +336,33 @@ dl.facts dd { margin: 0; overflow-wrap: anywhere; }
 .slip dd { margin: 0; overflow-wrap: anywhere; }
 .slip-key { font-family: var(--mono); font-weight: 700; font-size: 1rem; letter-spacing: 0.04em; }
 .slip > p { margin: 12px 0 0; font-size: 0.78rem; color: #5b6380; }
+
+/* ---------- Printable connection guide (always light, like paper) ---------- */
+.guide { max-width: 900px; margin: 0 auto; background: #fff; color: #141a33; border-radius: 12px; padding: 28px 32px; box-shadow: var(--shadow-sm); }
+.guide header { display: flex; align-items: center; gap: 14px; padding-bottom: 14px; margin-bottom: 16px; border-bottom: 3px solid #be9f1e; }
+.guide header img { height: 56px; }
+.guide h1 { margin: 2px 0 0; font-size: 1.6rem; color: #12055b; }
+.guide h2 { margin: 0 0 8px; font-size: 1.02rem; color: #12055b; }
+.guide section { margin-top: 18px; break-inside: avoid; }
+.guide .lead { font-size: 1.02rem; margin: 0; }
+.guide ol, .guide ul { margin: 0; padding-left: 20px; font-size: 0.9rem; line-height: 1.5; }
+.guide li + li { margin-top: 3px; }
+.guide .muted { color: #5b6380; font-size: 0.82rem; margin: 6px 0 0; }
+.guide-warn { margin-top: 14px; padding: 10px 14px; border-left: 4px solid #be9f1e; background: #fbf6e6; font-size: 0.9rem; border-radius: 0 8px 8px 0; }
+.guide-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
+.guide-privacy { padding: 12px 14px; background: #f2f4f9; border-radius: 8px; font-size: 0.86rem; }
+.guide-privacy p { margin: 0; }
+.guide-privacy p + p { margin-top: 6px; }
+@media (max-width: 640px) {
+  .guide { padding: 20px 16px; }
+  .guide-grid { grid-template-columns: 1fr; }
+}
+
 @media print {
   .slips-page { background: #fff; padding: 0; }
   .slips-bar { display: none; }
   .slips { grid-template-columns: 1fr 1fr; gap: 10px; max-width: none; }
   .slip { padding: 12px; }
+  .guide { box-shadow: none; padding: 0; max-width: none; }
+  .guide section { margin-top: 12px; }
 }

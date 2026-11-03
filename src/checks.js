@@ -92,7 +92,7 @@ export function ldapSearch({ host, port = 636, cert, key, baseDn, email, timeout
 
 // --- The checks.
 
-export function createChecks({ config, directory, mailer, vsz, radiusStatus = () => null, ldap = ldapSearch }) {
+export function createChecks({ config, directory, mailer, vsz, drive = null, radiusStatus = () => null, ldap = ldapSearch }) {
   const adminEmail = config.google.directory?.adminEmail;
   const domain = config.radius.defaultDomain;
   const ldapConf = {
@@ -152,6 +152,10 @@ export function createChecks({ config, directory, mailer, vsz, radiusStatus = ()
       });
       return `a test email was sent to ${config.alerts.to.join(', ')}: check that it arrived`;
     }));
+
+    results.push(drive
+      ? await step('Off-site backups (Google Drive)', () => drive.test())
+      : skipped('Off-site backups (Google Drive)', 'not set up (backup.drive): backups stay on this server only'));
 
     results.push(await step('vSZ API (guest keys)', async () => {
       const keys = await vsz.listKeys();

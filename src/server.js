@@ -8,7 +8,7 @@ import { createApp } from './app.js';
 import { createChecks } from './checks.js';
 import { loadConfig } from './config.js';
 import { openDb } from './db.js';
-import { createDirectoryClient, createMailer, createServiceAccount } from './google.js';
+import { createDirectoryClient, createDriveBackup, createMailer, createServiceAccount } from './google.js';
 import { createKeyService } from './keys.js';
 import { createLogger } from './log.js';
 import { createRadiusApi } from './radius-api.js';
@@ -42,12 +42,30 @@ alerts = createAlerts({ mailer, to: config.alerts.to, publicUrl: config.publicUr
 const access = createAccess({ settings, directory });
 const radiusApi = createRadiusApi({ config, db, access, settings, log });
 
+const drive = config.backup.drive ? createDriveBackup({ serviceAccount, ...config.backup.drive }) : null;
+
+// Copies the latest backup to Drive in the background; the local copy is already safe.
+function offsite(backup) {
+  backup.offsite = { pending: true };
+  drive
+    .upload(backup.file)
+    .then((r) => {
+      backup.offsite = { at: Date.now(), name: r.name, size: r.size };
+      log('backup_offsite', { name: r.name, size: r.size, removed: r.removed });
+    })
+    .catch((err) => {
+      backup.offsite = { at: Date.now(), error: err.message };
+      log('backup_error', { error: `Drive copy: ${err.message}` });
+    });
+}
+
 let lastBackup = null;
 function backupNow() {
   try {
     const result = db.backup(config.backup.dir, config.backup.keep);
     lastBackup = { at: Date.now(), file: result.file, size: result.size };
     log('backup', { file: result.file, size: result.size, removed: result.removed });
+    if (drive) offsite(lastBackup);
     return lastBackup;
   } catch (err) {
     lastBackup = { at: Date.now(), error: err.message };
@@ -59,7 +77,7 @@ const platform = { backupNow, status: () => ({ backup: lastBackup, alerts: alert
 
 const vsz = createVszClient(config.dpsk);
 const keys = createKeyService({ config, db, vsz, log });
-platform.checks = createChecks({ config, directory, mailer, vsz, radiusStatus: radiusApi.status });
+platform.checks = createChecks({ config, directory, mailer, vsz, drive, radiusStatus: radiusApi.status });
 const admin = createAdmin({ config, db, settings, keys, access, platform, log });
 const app = createApp({ admin, radiusApi, log });
 

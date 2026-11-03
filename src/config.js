@@ -88,6 +88,15 @@ export function normalizeConfig(raw) {
     need(dir?.serviceAccountKeyFile, 'alerts need google.directory.serviceAccountKeyFile (the same service account)');
   }
 
+  // Off-site: each nightly copy also goes to a Google Drive folder, uploaded as a
+  // Workspace user (backup.drive.as) who may add files there.
+  if (c.backup.drive) {
+    c.backup.drive = { keep: 30, as: c.alerts.from ?? dir?.adminEmail ?? null, ...c.backup.drive };
+    need(c.backup.drive.folderId, 'backup.drive.folderId is the Drive folder for off-site backups (the last part of its URL)');
+    need(c.backup.drive.as, 'backup.drive.as must be a Workspace user who can add files to that folder');
+    need(dir?.serviceAccountKeyFile, 'Drive backups need google.directory.serviceAccountKeyFile (the same service account)');
+  }
+
   const checked = validatePolicy(c.policy ?? {}, { directoryEnabled: Boolean(dir?.enabled) });
   problems.push(...checked.problems.map((p) => `policy: ${p}`));
   c.policy = checked.policy;

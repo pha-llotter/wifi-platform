@@ -21,6 +21,8 @@ export function createAccess({ settings, directory = null, cacheMs = 5 * 60_000 
 
   async function resolve(email) {
     let e = email.toLowerCase();
+    // Real addresses are short; a long one only costs time in the rules' regexes.
+    if (e.length > 128) return { allow: false, reason: 'username too long' };
     if (settings.isBlocked(e)) return { allow: false, reason: 'blocked by an admin' };
     const domain = e.split('@')[1];
     if (!settings.current().allowedDomains.includes(domain)) return { allow: false, reason: `${domain || 'that username'} isn't an allowed domain` };

@@ -290,6 +290,8 @@ function healthChecks(hl) {
   const b = hl.backup;
   if (b?.error) items.push(['bad', 'The last backup failed', `${b.error} (${ago(b.at)})`]);
   else if (b) items.push(['ok', `Backed up ${ago(b.at)}`, `${String(b.file).split(/[\\/]/).pop()}, ${Math.round(b.size / 1024)} KB.`]);
+  if (b?.offsite?.error) items.push(['bad', "The backup couldn't be copied to Google Drive", `${b.offsite.error} (${ago(b.offsite.at)}). The copy on the server is fine.`]);
+  else if (b?.offsite?.name) items.push(['ok', 'Copied to Google Drive', `${b.offsite.name}, ${Math.round(b.offsite.size / 1024)} KB, ${ago(b.offsite.at)}.`]);
   if (hl.alerts && !hl.alerts.enabled) items.push(['warn', 'Email alerts are off', 'Set alerts.from and alerts.to in config.json so IT hears about problems straight away.']);
 
   const latest = hl.recentErrors[0];
@@ -889,6 +891,7 @@ async function settings(s) {
         <dt>Guest SSID</dt><dd><strong>${h(f.guestSsid)}</strong>: visitor keys (${f.guestVlanId ? `VLAN ${h(f.guestVlanId)}` : 'SSID default VLAN'}, up to ${h(f.maxGuestDays)} days)</dd>
         <dt>vSZ API</dt><dd><span class="mono">${h(f.vsz)}</span> ${security}</dd>
         <dt>Backups</dt><dd class="mono">${h(f.backup.dir)} <span class="muted">(last ${h(f.backup.keep)} days)</span></dd>
+        <dt>Off-site</dt><dd>${f.backup.drive ? `Google Drive, as ${h(f.backup.drive.as)} <span class="muted">(last ${h(f.backup.drive.keep)})</span>` : '<span class="muted">Not set up: backups stay on this server</span>'}</dd>
         <dt>Email alerts</dt><dd>${f.alerts.enabled ? `To ${h(f.alerts.to.join(', '))}` : '<span class="badge">Off</span>'}</dd>
         <dt>Admins</dt><dd>${h(f.admins.join(', '))}</dd>
         <dt>Admin access from</dt><dd>${f.allowFrom.length ? h(f.allowFrom.join(', ')) : 'Anywhere'}</dd>
@@ -900,6 +903,7 @@ async function settings(s) {
       <div class="panel-body stack">
         <div class="tool"><div><strong>Check connections</strong><p class="muted">Tries Google (directory and Secure LDAP), the vSZ and alert email, and sends a test alert.</p></div><button class="btn" id="check" type="button">Check</button></div>
         <ul class="checks" id="check-results" hidden></ul>
+        <div class="tool"><div><strong>Connection guide</strong><p class="muted">A printable page for staff and learners: how to connect each device, and what the school records (POPIA).</p></div><a class="btn" href="/admin/guide" target="_blank" rel="noopener">Open</a></div>
         <div class="tool"><div><strong>Back up now</strong><p class="muted">A copy of the database is made every night; make one now before big changes.</p></div><button class="btn" id="backup-now" type="button">Back up</button></div>
         <div class="tool"><div><strong>Adopt keys from the vSZ</strong><p class="muted">After restoring a backup: guest keys on the vSZ that the platform doesn't know about are taken over.</p></div><button class="btn" id="adopt" type="button">Adopt keys</button></div>
         <div class="tool"><div><strong>Export usage</strong><p class="muted">Data used per person, device and day.</p></div><a class="btn" href="/admin/api/export/usage.csv">Download CSV</a></div>

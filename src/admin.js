@@ -221,7 +221,12 @@ export function createAdmin({ config, db, settings, keys, access, platform = nul
         guestVlanId: config.dpsk.guestVlanId,
         maxGuestDays: config.dpsk.maxGuestDays,
         vszSecurity: keys.status().vsz.security,
-        backup: { dir: config.backup.dir, keep: config.backup.keep, last: platform?.status().backup ?? null },
+        backup: {
+          dir: config.backup.dir,
+          keep: config.backup.keep,
+          drive: config.backup.drive ? { as: config.backup.drive.as, keep: config.backup.drive.keep } : null,
+          last: platform?.status().backup ?? null,
+        },
         alerts: platform?.status().alerts ?? { enabled: false, to: [] },
       },
     };
@@ -272,6 +277,73 @@ export function createAdmin({ config, db, settings, keys, access, platform = nul
 </article>`,
         )
         .join('')}</div>
+<script src="/admin/print.js"></script></body></html>`,
+      'text/html; charset=utf-8',
+    );
+  }
+
+  // A printable page for staff and learners: how to connect each kind of device, and
+  // what the school records about WiFi use (POPIA). Filled in from the config.
+  function guide(res) {
+    const e = escapeHtml;
+    const { ssid, serverName, defaultDomain: domain } = config.radius;
+    const name = settings.current().branding.name;
+    const days = settings.current().retentionDays;
+    const contact = config.alerts.to[0] ?? config.admin.emails[0] ?? '';
+    const step = (items) => `<ol>${items.map((i) => `<li>${i}</li>`).join('')}</ol>`;
+    send(
+      res,
+      200,
+      `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connecting to ${e(ssid)}</title><link rel="stylesheet" href="/admin/app.css"></head>
+<body class="slips-page">
+<div class="slips-bar"><strong>Connection guide</strong><button class="btn btn-primary" id="print" type="button">Print</button></div>
+<article class="guide">
+  <header><img src="/admin/crest-128.png" alt=""><div><div class="slip-brand">${e(config.branding.school || name)}</div><h1>Connecting to ${e(ssid)}</h1></div></header>
+
+  <p class="lead">Log in with your <strong>school Google account</strong>: your school email address (or just the part before @${e(domain)}) and the password you use for Gmail and Classroom. There's no separate WiFi password.</p>
+
+  <div class="guide-warn"><strong>Stay safe:</strong> your device must check that it is talking to <strong>${e(serverName)}</strong>. Set it up exactly as below. If a device ever asks you to "trust" a certificate or "continue connecting" with one you didn't expect, <strong>stop</strong> and tell IT: it may be a fake network trying to collect passwords.</div>
+
+  <div class="guide-grid">
+    <section><h2>iPhone, iPad and Mac</h2>${step([
+      'Ask IT for the <strong>setup file</strong> (sent by email or AirDrop) and open it.',
+      'iPhone/iPad: <strong>Settings → Profile Downloaded → Install</strong>. Mac: <strong>System Settings → Privacy &amp; Security → Profiles</strong>.',
+      'Enter your school email and password when asked.',
+      `Your device joins ${e(ssid)} from now on by itself.`,
+    ])}<p class="muted">Joining ${e(ssid)} without the setup file won't work on Apple devices.</p></section>
+
+    <section><h2>Android</h2>${step([
+      `Settings → WiFi → <strong>${e(ssid)}</strong>.`,
+      'EAP method: <strong>TTLS</strong>. Phase 2 authentication: <strong>PAP</strong>.',
+      'CA certificate: <strong>Use system certificates</strong>.',
+      `Domain: <strong>${e(serverName)}</strong> (exactly this).`,
+      'Identity: your school email. Leave anonymous identity empty. Password: your school password.',
+    ])}</section>
+
+    <section><h2>Windows laptop</h2>${step([
+      'School laptops are set up by IT.',
+      `For your own laptop, ask IT for the <strong>${e(ssid)} setup file</strong>; IT installs it in a minute.`,
+      `Then choose ${e(ssid)} and enter your school email and password.`,
+    ])}<p class="muted">Please don't add the network by hand: Windows then can't check it is the real school network.</p></section>
+
+    <section><h2>Chromebook</h2>${step([
+      'School Chromebooks connect by themselves.',
+      `Your own: WiFi → <strong>${e(ssid)}</strong>, EAP method <strong>EAP-TTLS</strong>, Phase 2 <strong>PAP</strong>, Server CA certificate <strong>Default</strong>, Domain suffix match <strong>${e(serverName)}</strong>, then your email and password.`,
+    ])}</section>
+  </div>
+
+  <section><h2>If it doesn't connect</h2><ul>
+    <li><strong>Check your password</strong> by signing in to Gmail. If you changed it, use the new one; you may need to "forget" ${e(ssid)} and join again.</li>
+    <li><strong>Still no luck?</strong> Tell IT your school email and the time you tried. They can see why a login was turned away.</li>
+    <li><strong>Visitors</strong> without a school account use <strong>${e(config.dpsk.ssid)}</strong> with a key from IT or reception.</li>
+  </ul></section>
+
+  <section class="guide-privacy"><h2>What the school records</h2>
+    <p>To keep the network safe and working, the WiFi system records your <strong>school email</strong>, your device's <strong>network address (MAC)</strong>, <strong>when</strong> and <strong>where</strong> (which access point) you connected, and <strong>how much data</strong> you used. It does <strong>not</strong> record which websites you visit or what you do online, and it never sees your password: Google checks that.</p>
+    <p>These records are deleted automatically after <strong>${e(days)} days</strong>, are seen only by the school's IT administrators, and are used only to run the WiFi, solve problems and keep use fair. This follows the Protection of Personal Information Act (POPIA) and the school's ICT policy.${contact ? ` Questions: <strong>${e(contact)}</strong>.` : ''}</p>
+  </section>
+</article>
 <script src="/admin/print.js"></script></body></html>`,
       'text/html; charset=utf-8',
     );
@@ -477,6 +549,7 @@ export function createAdmin({ config, db, settings, keys, access, platform = nul
     if (crossSite && (p === '/admin/print' || p.startsWith('/admin/api/export/'))) {
       return send(res, 403, 'Open this from the dashboard.', 'text/plain; charset=utf-8');
     }
+    if (p === '/admin/guide' && s) return guide(res);
     if (p === '/admin/print' && s) {
       const ids = (url.searchParams.get('ids') ?? '').split(',').filter(Boolean);
       return printSlips(res, ids, s);

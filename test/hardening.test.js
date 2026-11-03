@@ -150,3 +150,110 @@ describe('hardening', () => {
     assert.ok(fs.statSync(path.join(dir, 'wifi.jsonl.1')).size <= 300);
   });
 });
+
+describe('off-site backups to Google Drive', () => {
+  // A small stand-in for the Drive API: resumable uploads, list and trash.
+  async function fakeDrive({ refuse = false } = {}) {
+    const http = await import('node:http');
+    const files = [];
+    const calls = [];
+    const server = http.createServer(async (req, res) => {
+      const chunks = [];
+      for await (const c of req) chunks.push(c);
+      const body = Buffer.concat(chunks);
+      const url = new URL(req.url, 'http://drive');
+      calls.push(`${req.method} ${url.pathname} ${req.headers.authorization ?? ''}`);
+      const send = (status, obj, headers = {}) => {
+        res.writeHead(status, { 'Content-Type': 'application/json', ...headers });
+        res.end(JSON.stringify(obj));
+      };
+      if (refuse) return send(403, { error: { message: 'The user does not have sufficient permissions for this file.' } });
+      if (req.method === 'POST' && url.pathname === '/upload/drive/v3/files') {
+        const meta = JSON.parse(body);
+        const id = `f${files.length + 1}`;
+        files.push({ id, ...meta, trashed: false, createdTime: new Date(Date.now() + files.length).toISOString() });
+        return send(200, {}, { Location: `http://127.0.0.1:${server.address().port}/session/${id}` });
+      }
+      if (req.method === 'PUT' && url.pathname.startsWith('/session/')) {
+        const f = files.find((x) => x.id === url.pathname.split('/').pop());
+        f.data = body;
+        return send(200, { id: f.id });
+      }
+      if (req.method === 'GET' && url.pathname === '/drive/v3/files') {
+        const list = files.filter((f) => !f.trashed && f.name.includes('wifi-portal-')).sort((a, b) => b.createdTime.localeCompare(a.createdTime));
+        return send(200, { files: list.map(({ id, name, createdTime }) => ({ id, name, createdTime })) });
+      }
+      if (req.method === 'PATCH') {
+        files.find((x) => x.id === url.pathname.split('/').pop()).trashed = JSON.parse(body).trashed;
+        return send(200, {});
+      }
+      send(404, { error: { message: 'not found' } });
+    });
+    await new Promise((r) => server.listen(0, '127.0.0.1', r));
+    return { files, calls, api: `http://127.0.0.1:${server.address().port}`, close: () => server.close() };
+  }
+
+  test('each backup is uploaded gzipped as the chosen user, and only the newest are kept', async () => {
+    const zlib = await import('node:zlib');
+    const { createDriveBackup } = await import('../src/google.js');
+    const fake = await fakeDrive();
+    const scopes = [];
+    const serviceAccount = { accessToken: async (scope, subject) => (scopes.push([scope, subject]), 'tok') };
+    const drive = createDriveBackup({ serviceAccount, as: 'backups@school.org', folderId: 'folder-1', keep: 2, api: fake.api });
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wp-drive-'));
+    for (const day of [1, 2, 3]) {
+      const file = path.join(dir, `wifi-portal-2026-01-0${day}.db`);
+      fs.writeFileSync(file, `database ${day}`);
+      const r = await drive.upload(file);
+      assert.equal(r.name, `wifi-portal-2026-01-0${day}.db.gz`);
+    }
+    assert.deepEqual(scopes[0], ['https://www.googleapis.com/auth/drive.file', 'backups@school.org']);
+    assert.ok(fake.files.every((f) => f.parents[0] === 'folder-1'));
+    assert.equal(zlib.gunzipSync(fake.files[2].data).toString(), 'database 3');
+    assert.deepEqual(fake.files.map((f) => f.trashed), [true, false, false], 'the oldest went to the trash');
+    assert.equal(await drive.test(), 'backups@school.org can add files to the folder');
+    assert.equal(fake.files.at(-1).name, 'connection-check.txt');
+    assert.equal(fake.files.at(-1).trashed, true, 'the check file is trashed again');
+    fake.close();
+  });
+
+  test("Drive's reason is passed on when it refuses", async () => {
+    const { createDriveBackup } = await import('../src/google.js');
+    const fake = await fakeDrive({ refuse: true });
+    const drive = createDriveBackup({ serviceAccount: { accessToken: async () => 'tok' }, as: 'x@school.org', folderId: 'f', api: fake.api });
+    await assert.rejects(drive.test(), /Drive upload failed: The user does not have sufficient permissions/);
+    fake.close();
+  });
+
+  test('config: a folder is needed, and the uploader defaults to the alerts mailbox', () => {
+    assert.throws(() => baseConfig({ backup: { drive: {} } }), /backup\.drive\.folderId/);
+    const c = baseConfig({ backup: { drive: { folderId: 'abc' } } });
+    assert.equal(c.backup.drive.as, 'alerts@school.org');
+    assert.equal(c.backup.drive.keep, 30);
+  });
+});
+
+describe('connection guide', () => {
+  let h, a;
+  before(async () => {
+    h = await startPlatform();
+    a = await h.loginAdmin();
+  });
+  after(() => h.close());
+
+  test('admins get a printable guide filled in from the config; others get nothing', async () => {
+    const r = await h.req('/admin/guide', { cookie: a.cookie });
+    assert.equal(r.res.status, 200);
+    assert.match(r.text, /Connecting to PHA-WiFi/);
+    assert.match(r.text, /radius\.school\.org/);
+    assert.match(r.text, /deleted automatically after <strong>90 days/);
+    assert.match(r.text, /PHA-Guest/);
+    assert.doesNotMatch((await h.req('/admin/guide')).text, /Connecting to/);
+  });
+
+  test('absurdly long usernames are refused before any rule runs', async () => {
+    const d = await h.access.check(`${'a'.repeat(200)}@school.org`);
+    assert.equal(d.allow, false);
+    assert.equal(d.reason, 'username too long');
+  });
+});

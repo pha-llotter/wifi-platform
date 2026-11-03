@@ -60,6 +60,10 @@ Firewall:
    - Add `https://www.googleapis.com/auth/gmail.send` to the service account's domain-wide delegation entry. The entry's scopes become `https://www.googleapis.com/auth/admin.directory.user.readonly,https://www.googleapis.com/auth/gmail.send`.
    - Pick the mailbox alerts come from, for example `wifi-alerts@phahs.org.za`. It must be a real Workspace user, because the service account sends as that user. It can send only, and can't read mail.
    - Set `alerts.from` to that mailbox and `alerts.to` to the people who should hear about problems.
+5. **Off-site backups** (recommended). Each nightly database copy is also uploaded, gzipped, to a Google Drive folder, so a lost server doesn't lose the records.
+   - In the same Cloud project, enable the **Google Drive API**, and add `https://www.googleapis.com/auth/drive.file` to the delegation entry. With this scope the platform can only see files it uploaded itself.
+   - Make a **Shared Drive** (for example "WiFi backups") and add the uploading user as **Content manager**. That user is `alerts.from` unless you set `backup.drive.as`.
+   - Make a folder in it, and copy the last part of the folder's URL into `backup.drive.folderId`. The last 30 copies are kept (`backup.drive.keep`); older ones go to the Shared Drive's trash.
 
 ### 3. The vSZ
 
@@ -154,9 +158,11 @@ Rules are checked from top to bottom, and the first match wins. A rule matches o
 | **Usage** | Data downloaded and uploaded today, over 7 days or over 30 days: the top 50 people, totals per VLAN, and everyone online now with their device, IP and data this session. CSV export. |
 | **Guests** | Make a visitor key on PHA-Guest for 1–`maxGuestDays` days and print or show the slip. **Reset** frees a key for another phone; **End** stops it early. |
 | **Rules** | Allowed domains, plus rules from org unit to VLAN. |
-| **Settings** | Name, the **daily usage alert** level, record retention, platform facts, and tools: back up now, adopt keys from the vSZ, export usage, logins and keys as CSV. |
+| **Settings** | Name, the **daily usage alert** level, record retention, platform facts, and tools: check connections, the printable **connection guide**, back up now, adopt keys from the vSZ, export usage, logins and keys as CSV. |
 
-Everything is kept in `/var/lib/wifi-portal/wifi-portal.db`, with a copy every night in `backups/`; the last 14 are kept. Copy that folder off the server too.
+Everything is kept in `/var/lib/wifi-portal/wifi-portal.db`, with a copy every night in `backups/`; the last 14 are kept. With `backup.drive` set, each copy also goes to Google Drive. To restore one: stop the platform, copy it over `wifi-portal.db` (gunzip a Drive copy first), start it again, then use **Settings → Adopt keys** for guest keys made since.
+
+**Connection guide:** **Settings → Connection guide** opens a one-page guide for staff and learners, filled in from the config: how to connect each kind of device, what to do if it fails, and what the school records about WiFi use, for POPIA. Print it, or save it as PDF for the website or newsletter. Check the privacy wording against the school's ICT policy first.
 
 ## Usage
 
@@ -184,11 +190,31 @@ Everything is kept in `/var/lib/wifi-portal/wifi-portal.db`, with a copy every n
   - the Docker health check answers;
   - a token mismatch between FreeRADIUS and the platform refuses logins.
 
+## Pilot
+
+Run PHA-WiFi next to the current network for one or two weeks with IT and a few teachers before telling everyone. Tick off:
+
+| # | Check | How |
+|---|---|---|
+| 1 | Every connection works | **Settings → Check connections**: all green, and the test email arrived. |
+| 2 | Google checks passwords | `sudo ./scripts/test-login.sh` with a staff account and a learner account: accepted on VLAN 20 and 30. Then with a wrong password: refused. |
+| 3 | The vSZ applies the VLAN | A staff phone and a learner phone on PHA-WiFi get addresses from their own VLANs. **People** shows the VLAN each login was given. |
+| 4 | Usage arrives | After 10–20 minutes online, the phone shows under **Usage → Online now** with growing figures. |
+| 5 | Every kind of device | iPhone with the profile, a Mac, Android with the Domain set, a Windows laptop with the profile, a school Chromebook, and a personal Chromebook. |
+| 6 | Turning people away | Block a test account: its next login is refused, with the reason under **Activity**. Unblock it. Do the same with a suspended test account in Google. |
+| 7 | Roaming | Walk a phone across the school on a call or video: it shouldn't drop, and Activity shouldn't fill with logins (fast roaming works). |
+| 8 | Guests | Make a guest key, print the slip, join PHA-Guest with it, then end it: the phone can't join again (note whether the vSZ also drops it at once). |
+| 9 | Fallback | Decide `FALLBACK_VLAN`. Stop the platform (`docker compose stop wifi-portal`) and see that new logins do what you decided. Start it again. |
+| 10 | Backups | **Settings → Back up now**; with Drive set up, the copy appears in the Shared Drive. |
+| 11 | A busy morning | During the first full morning, watch **Overview** for `directory_error` and slow logins. |
+
+Then hand out the connection guide, send the Apple and Windows profiles, and push the network to managed Chromebooks.
+
 ## Things to check when going live
 
 - **Google Secure LDAP:** the client is **On** and has both permissions. The first login of the day may take a second or two.
 - **Dynamic VLAN on PHA-WiFi:** people on different rules really end up on different VLANs. The **Overview** and **People** pages show the VLAN each login was given.
-- **Certificate on Android:** set **Domain** to exactly `radius.phahs.org.za`. Older Android versions without that field must use "Do not validate", which is weaker.
+- **Certificate on Android:** set **Domain** to exactly `radius.phahs.org.za`. Old Android versions without that field can't check the server; send those devices to PHA-Guest rather than turning validation off.
 - **Quotas:** watch for `directory_error` alerts in the first busy week, and keep fast roaming on.
 - **RADIUS across the internet:** the vSZ reaches FreeRADIUS over the internet, protected by the shared secret and the school-IP firewall rule. Use a long random secret (`openssl rand -hex 32`). If the vSZ and the server can share a VPN (WireGuard or IPsec), sending RADIUS through it is better still.
 - **Dashboard access:** set `admin.allowFrom` to the school's public IP (and yours) if admins only use it from known places.

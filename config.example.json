@@ -52,7 +52,10 @@
     "to": ["llotter@phahs.org.za"]
   },
 
-  "backup": { "keep": 14 },
+  "backup": {
+    "keep": 14,
+    "drive": { "folderId": "the last part of the Drive folder's URL", "keep": 30 }
+  },
 
   "branding": {
     "name": "PHA WiFi",

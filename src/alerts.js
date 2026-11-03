@@ -32,7 +32,7 @@ export function createAlerts({ mailer = null, to = [], publicUrl, log, minInterv
     } else if (event === 'google_error') {
       alert('google', "Google sign-in isn't working", data.error);
     } else if (event === 'backup_error') {
-      alert('backup', 'The nightly backup failed', data.error);
+      alert('backup', 'The nightly backup failed', `${data.error}\n\nThe database itself is fine; only the copy failed.`);
     } else if (event === 'usage_high') {
       alert(`usage:${data.email}`, `${data.email} used ${data.gb} GB today`, `${data.email} has used ${data.gb} GB on the WiFi today, over the ${data.limitGb} GB alert level. Their devices and sessions are on their page in the dashboard.`);
     } else if (event === 'key_sync' && data.revoked >= 20) {

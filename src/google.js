@@ -1,13 +1,16 @@
 // Google sign-in (OpenID Connect, authorization code + PKCE) and the optional
-// Admin SDK Directory lookup (org units, suspended accounts) and Gmail alerts, both
-// through one service account with domain-wide delegation.
+// Admin SDK Directory lookup (org units, suspended accounts), Gmail alerts and Drive
+// backups, all through one service account with domain-wide delegation.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import path from 'node:path';
+import zlib from 'node:zlib';
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const DIRECTORY_SCOPE = 'https://www.googleapis.com/auth/admin.directory.user.readonly';
 const GMAIL_SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
+const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const ISSUERS = ['https://accounts.google.com', 'accounts.google.com'];
 
 export const randomToken = (bytes = 32) => crypto.randomBytes(bytes).toString('base64url');
@@ -166,4 +169,74 @@ export function createMailer({ serviceAccount, from }) {
     }
   }
   return { send };
+}
+
+/**
+ * Off-site copies of the nightly backup in a Google Drive folder (a Shared Drive is
+ * best), uploaded gzipped as `as`, a Workspace user who can add files there. Scope
+ * drive.file: the service account only sees the files it uploaded itself.
+ */
+export function createDriveBackup({ serviceAccount, as, folderId, keep = 30, api = 'https://www.googleapis.com' }) {
+  const token = () => serviceAccount.accessToken(DRIVE_FILE_SCOPE, as);
+  const fail = async (res, what) => {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(`Drive ${what} failed: ${body.error?.message ?? res.status}`);
+  };
+
+  /** The backups already in the folder, newest first. */
+  async function list() {
+    const q = `'${folderId.replace(/['\\]/g, '\\$&')}' in parents and trashed = false and name contains 'wifi-portal-'`;
+    const params = new URLSearchParams({ q, orderBy: 'createdTime desc', pageSize: '200', fields: 'files(id,name,size,createdTime)', supportsAllDrives: 'true', includeItemsFromAllDrives: 'true' });
+    const res = await fetch(`${api}/drive/v3/files?${params}`, { headers: { Authorization: `Bearer ${await token()}` }, signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) await fail(res, 'list');
+    return (await res.json()).files ?? [];
+  }
+
+  const trash = async (id) => {
+    const res = await fetch(`${api}/drive/v3/files/${encodeURIComponent(id)}?supportsAllDrives=true`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${await token()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trashed: true }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) await fail(res, 'clean-up');
+  };
+
+  async function put(name, data, mimeType) {
+    // A resumable session takes any size in one PUT.
+    const start = await fetch(`${api}/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${await token()}`, 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': mimeType },
+      body: JSON.stringify({ name, parents: [folderId], mimeType }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!start.ok) await fail(start, 'upload');
+    const done = await fetch(start.headers.get('location'), {
+      method: 'PUT',
+      headers: { 'Content-Type': mimeType },
+      body: data,
+      signal: AbortSignal.timeout(300_000),
+    });
+    if (!done.ok) await fail(done, 'upload');
+    return (await done.json()).id;
+  }
+
+  async function upload(file) {
+    const data = zlib.gzipSync(fs.readFileSync(file));
+    const name = `${path.basename(file)}.gz`;
+    const id = await put(name, data, 'application/gzip');
+    // Old copies go to the Shared Drive's trash (emptied after 30 days), which a
+    // Content manager may do; deleting outright would need Manager.
+    const old = (await list()).slice(keep);
+    for (const f of old) await trash(f.id);
+    return { id, name, size: data.length, removed: old.length };
+  }
+
+  /** Proves uploads work: writes a tiny file into the folder and trashes it again. */
+  async function test() {
+    await trash(await put('connection-check.txt', Buffer.from('WiFi platform connection check\n'), 'text/plain'));
+    return `${as} can add files to the folder`;
+  }
+
+  return { upload, list, test };
 }

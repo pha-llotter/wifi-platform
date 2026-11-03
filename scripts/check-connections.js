@@ -1,10 +1,10 @@
 // Tries each outside service the platform depends on: the Google directory, Google
-// Secure LDAP, alert email (sends a test) and the vSZ API. Same as Settings → Check.
+// Secure LDAP, alert email (sends a test), Drive backups and the vSZ API. Same as Settings → Check.
 //   docker compose exec wifi-portal node scripts/check-connections.js /etc/wifi-portal/config.json
 //   add --no-email to skip the test alert email
 import { createChecks } from '../src/checks.js';
 import { loadConfig } from '../src/config.js';
-import { createDirectoryClient, createMailer, createServiceAccount } from '../src/google.js';
+import { createDirectoryClient, createDriveBackup, createMailer, createServiceAccount } from '../src/google.js';
 import { createVszClient } from '../src/vsz.js';
 
 const args = process.argv.slice(2);
@@ -20,9 +20,10 @@ try {
 }
 const directory = dir?.enabled ? createDirectoryClient({ serviceAccount, adminEmail: dir.adminEmail }) : null;
 const mailer = config.alerts.from ? createMailer({ serviceAccount, from: config.alerts.from }) : null;
+const drive = config.backup.drive ? createDriveBackup({ serviceAccount, ...config.backup.drive }) : null;
 const vsz = createVszClient(config.dpsk);
 
-const checks = createChecks({ config, directory, mailer, vsz });
+const checks = createChecks({ config, directory, mailer, vsz, drive });
 try {
   const results = (await checks.run({ email: !args.includes('--no-email') })).filter((r) => r.name !== 'FreeRADIUS');
   for (const r of results) console.log(`${r.ok === true ? '✔' : r.ok === false ? '✖' : '–'} ${r.name}\n    ${r.detail}`);
