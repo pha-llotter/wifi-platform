@@ -133,7 +133,6 @@ describe('the sign-in page', () => {
     const r = await signIn('Nexus', 'pupil@school.org', 'pupil-pass');
     assert.equal(r.status, 200);
     assert.match(r.html, /You're connected/);
-    assert.match(r.html, /rest of the term/);
     const call = h.nbiCalls[0];
     assert.equal(call.username, 'pupil@school.org');
     assert.notEqual(call.password, 'pupil-pass', 'the school password never goes to the vSZ');

@@ -114,14 +114,9 @@ ${error ? `<p class="error" role="alert">${e(error)}</p>` : ''}
     send(res, status, page(title, `<h1>${e(title)}</h1><p class="lead">${e(text)}</p>`));
   }
 
-  function connectedPage(res, visit, email) {
-    const days = config.portal.rememberDays;
-    const remember = days >= 60 ? 'for the rest of the term' : days > 1 ? `for ${days} days` : days === 1 ? 'until tomorrow' : null;
-    send(res, 200, page("You're connected", `
-<div class="done" aria-hidden="true">✓</div>
-<h1>You're connected</h1>
-<p class="lead">Signed in as <strong>${e(email)}</strong>${visit.ssid ? ` on <strong>${e(visit.ssid)}</strong>` : ''}.</p>
-${remember ? `<p class="small">This device reconnects by itself ${e(remember)}. You can close this page.</p>` : '<p class="small">You can close this page.</p>'}`));
+  function connectedPage(res) {
+    send(res, 200, page("You're connected", `<div class="done" aria-hidden="true">✓</div>
+<h1>You're connected</h1>`));
   }
 
   // GET / from the vSZ's redirect: remember where the device is, then show the form.
@@ -213,7 +208,7 @@ ${remember ? `<p class="small">This device reconnects by itself ${e(remember)}. 
       return again(result.message && /time/i.test(result.message) ? 'That took too long. Try again.' : "Your password is right, but the WiFi didn't let this device on. Turn WiFi off and on, then try again.");
     }
     visits.delete(visit.id);
-    return connectedPage(res, visit, who);
+    return connectedPage(res);
   }
 
   async function handle(req, res, url) {
@@ -225,7 +220,7 @@ ${remember ? `<p class="small">This device reconnects by itself ${e(remember)}. 
     }
     if (p === '/connect' && req.method === 'POST') return connect(req, res);
     if (p === '/' || p === '/connect') return landing(req, res, url);
-    if (p === '/connected') return messagePage(res, 200, "You're connected", 'You can close this page.');
+    if (p === '/connected') return connectedPage(res);
     return null;
   }
 
