@@ -478,8 +478,8 @@ openssl rand -hex 32     <span class="c"># 2: the platform token (FreeRADIUS ↔
     <li><strong>Download the certificate.</strong> The zip holds a <code>.crt</code> and a <code>.key</code> file. Rename them <code>ldap-client.crt</code> and <code>ldap-client.key</code>.</li>
     <li>Set the client's <strong>Service status</strong> to <strong>On</strong>. It can take a few minutes, and sometimes longer, before Google accepts the certificate.</li>
     <li>Note the certificate's <strong>expiry date</strong>, shown on the client's page, and put a reminder in the calendar a month before it.</li>
+    <li><strong>Access credentials → Generate new credentials.</strong> Save the username and password: Google shows the password once. Some tenants, including phahs.org.za, let a client with only the certificate see the org units but no users, so every login would fail without them.</li>
   </ol>
-  <p class="small">Leave <strong>access credentials</strong> (a username and password for the LDAP client) alone for now: the certificate is enough. Part 8 covers the case where they're needed.</p>
 
   <h2><span class="num">3.2</span>OAuth client: admin sign-in to the dashboard</h2>
   <ol>
@@ -652,6 +652,7 @@ sudo chown root:root radius.env &amp;&amp; sudo chmod 600 radius.env</pre>
       <tr><td class="k"><code>google.clientId</code>, <code>clientSecret</code></td><td>From the OAuth client (3.2)</td></tr>
       <tr><td class="k"><code>google.allowedDomains</code></td><td><code>["phahs.org.za"]</code>. Personal Gmail and other domains are always turned away.</td></tr>
       <tr><td class="k"><code>google.directory.adminEmail</code></td><td>A Workspace admin the service account acts as, to read the directory</td></tr>
+      <tr><td class="k"><code>google.ldap.identity</code>, <code>password</code></td><td>The LDAP client's access credentials (3.1), the same as in radius.env. Check connections uses them.</td></tr>
       <tr><td class="k"><code>radius.apiToken</code></td><td>The <strong>platform token</strong> from 2.6</td></tr>
       <tr><td class="k"><code>policy.rules</code></td><td>Org units to VLANs, from the worksheet. They can be changed later on the dashboard's Rules page.</td></tr>
       <tr><td class="k"><code>dpsk.host</code></td><td>The vSZ address from the worksheet</td></tr>
@@ -675,6 +676,7 @@ sudo chown root:root radius.env &amp;&amp; sudo chmod 600 radius.env</pre>
       <tr><td class="k"><code>RADIUS_SECRET</code></td><td>The <strong>RADIUS shared secret</strong> from 2.6, the same as on the vSZ</td></tr>
       <tr><td class="k"><code>DEFAULT_DOMAIN</code></td><td><code>phahs.org.za</code>. A bare <code>t.smith</code> becomes <code>t.smith@phahs.org.za</code>.</td></tr>
       <tr><td class="k"><code>LDAP_BASE_DN</code></td><td><code>dc=phahs,dc=org,dc=za</code></td></tr>
+      <tr><td class="k"><code>LDAP_IDENTITY</code>, <code>LDAP_PASSWORD</code></td><td>The LDAP client's access credentials (3.1)</td></tr>
       <tr><td class="k"><code>PLATFORM_TOKEN</code></td><td>The <strong>platform token</strong> from 2.6, the same as <code>radius.apiToken</code></td></tr>
       <tr><td class="k"><code>FALLBACK_VLAN</code></td><td>Your decision from part 1: empty, or a restricted VLAN number</td></tr>
       <tr><td class="k">Everything else</td><td>Leave as it is</td></tr>

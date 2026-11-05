@@ -7,6 +7,7 @@
     "clientId": "000000000000-xxxxxxxxxxxxxxxx.apps.googleusercontent.com",
     "clientSecret": "GOCSPX-xxxxxxxxxxxxxxxxxxxx",
     "allowedDomains": ["phahs.org.za"],
+    "ldap": { "identity": "the LDAP client's access credentials username", "password": "and its password, the same as LDAP_IDENTITY and LDAP_PASSWORD in radius.env" },
     "directory": {
       "enabled": true,
       "serviceAccountKeyFile": "/etc/wifi-portal/service-account.json",

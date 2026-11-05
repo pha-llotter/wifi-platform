@@ -17,9 +17,13 @@ const tlv = (tag, content) => Buffer.concat([Buffer.from([tag]), berLength(conte
 const str = (s, tag = 0x04) => tlv(tag, Buffer.from(s, 'utf8'));
 const small = (n, tag = 0x02) => tlv(tag, Buffer.from([n])); // 0..127 is all this needs
 
-/** An anonymous bind (as FreeRADIUS does with no identity) followed by a search for one mail. */
-export function ldapSearchRequest(baseDn, email) {
-  const bind = tlv(0x60, Buffer.concat([small(3), str(''), str('', 0x80)]));
+/**
+ * A bind followed by a search for one mail, as FreeRADIUS does it: with the LDAP client's
+ * access credentials when they're set, otherwise anonymous (the certificate alone). Some
+ * Workspace tenants let a certificate-only client see the OUs but no users.
+ */
+export function ldapSearchRequest(baseDn, email, { identity = '', password = '' } = {}) {
+  const bind = tlv(0x60, Buffer.concat([small(3), str(identity ?? ''), str(password ?? '', 0x80)]));
   const filter = tlv(0xa3, Buffer.concat([str('mail'), str(email)])); // equalityMatch
   const search = tlv(0x63, Buffer.concat([
     str(baseDn), small(2, 0x0a), small(0, 0x0a), small(1), small(10), tlv(0x01, Buffer.from([0])),
@@ -69,7 +73,7 @@ export function parseLdapReply(buf) {
   }
 }
 
-export function ldapSearch({ host, port = 636, cert, key, baseDn, email, timeoutMs = 10_000, tlsOptions = {} }) {
+export function ldapSearch({ host, port = 636, cert, key, baseDn, email, identity = '', password = '', timeoutMs = 10_000, tlsOptions = {} }) {
   return new Promise((resolve, reject) => {
     const socket = tls.connect({ host, port, servername: host, cert, key, ...tlsOptions });
     let buf = Buffer.alloc(0);
@@ -79,7 +83,7 @@ export function ldapSearch({ host, port = 636, cert, key, baseDn, email, timeout
       fn(value);
     };
     const timer = setTimeout(() => done(reject, new Error(`no answer from ${host}:${port} within ${timeoutMs / 1000}s`)), timeoutMs);
-    socket.once('secureConnect', () => socket.write(ldapSearchRequest(baseDn, email)));
+    socket.once('secureConnect', () => socket.write(ldapSearchRequest(baseDn, email, { identity, password })));
     socket.on('data', (chunk) => {
       buf = Buffer.concat([buf, chunk]);
       const reply = parseLdapReply(buf);
@@ -133,9 +137,15 @@ export function createChecks({ config, directory, mailer, vsz, drive = null, rad
       } catch (err) {
         throw new Error(`can't read the LDAP client certificate: ${err.message}`);
       }
-      const reply = await ldap({ host: ldapConf.host, port: ldapConf.port, cert, key, baseDn: ldapConf.baseDn, email: lookup });
-      if (reply.found) return `the certificate is accepted and ${lookup} can be looked up`;
-      if (reply.found === false) throw new Error(`the certificate is accepted but ${lookup} wasn't found under ${ldapConf.baseDn}: check the LDAP client's "Access permissions" (read user information)`);
+      const withCredentials = Boolean(ldapConf.identity);
+      const reply = await ldap({ host: ldapConf.host, port: ldapConf.port, cert, key, baseDn: ldapConf.baseDn, email: lookup, identity: ldapConf.identity, password: ldapConf.password });
+      if (reply.found) return `the certificate${withCredentials ? ' and access credentials are' : ' is'} accepted and ${lookup} can be looked up`;
+      if (reply.found === false) {
+        throw new Error(`the certificate is accepted but ${lookup} wasn't found under ${ldapConf.baseDn}: ` + (withCredentials
+          ? 'check the LDAP client\'s "Access permissions" (read user information, entire domain)'
+          : 'the LDAP client probably needs access credentials as well (Admin console → the LDAP client → Access credentials → Generate). Put them in google.ldap.identity and password in config.json, and LDAP_IDENTITY and LDAP_PASSWORD in radius.env'));
+      }
+      if (reply.code === 49) throw new Error('Google refused the access credentials (invalid credentials): check google.ldap.identity and password, and that they match LDAP_IDENTITY and LDAP_PASSWORD in radius.env');
       const hint = reply.code === 32
         ? ` (is ${ldapConf.baseDn} right, and may the LDAP client read users? Set google.ldap.baseDn if the base differs)`
         : reply.code === 50 ? ' (the LDAP client in the Admin console needs "Read user information")' : '';

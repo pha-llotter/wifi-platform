@@ -51,6 +51,7 @@ Firewall:
    - Access permissions: **Verify user credentials** for the whole domain, and **Read user information** for the whole domain.
    - Download the **certificate** and save the `.crt` and `.key` as `/etc/wifi-portal/google-ldap/ldap-client.crt` and `ldap-client.key`.
    - Set the client's **Service status** to **On**.
+   - Under **Access credentials**, click **Generate new credentials**. Some tenants let a certificate-only client see the org units but no users, so every login would fail. Put the username and password in `LDAP_IDENTITY` and `LDAP_PASSWORD` (radius.env) and in `google.ldap.identity` and `password` (config.json, for Check connections).
 2. **OAuth client for admin sign-in.** In Google Cloud create a project, set **Google Auth Platform → Audience** to **Internal**, then create a **Web application** client with the redirect URI `https://wifi.phahs.org.za/admin/oauth/callback`. Put its ID and secret in `google.clientId` and `google.clientSecret`.
 3. **Directory lookup** (org units, suspended accounts):
    - Enable the **Admin SDK API**.

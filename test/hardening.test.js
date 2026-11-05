@@ -41,6 +41,14 @@ describe('connection check', () => {
     assert.equal(req.indexOf(0x63) > req.indexOf(0x60), true);
   });
 
+  test('with access credentials the bind carries them, as FreeRADIUS sends LDAP_IDENTITY', () => {
+    const req = ldapSearchRequest('dc=school,dc=org', 'a@school.org', { identity: 'SomeClient', password: 's3cret' });
+    const bindAt = req.indexOf(0x60);
+    assert.ok(bindAt > 0 && req.indexOf(Buffer.from('SomeClient')) > bindAt, 'the identity is in the bind');
+    assert.ok(req.includes(Buffer.concat([Buffer.from([0x80, 6]), Buffer.from('s3cret')])), 'the password is a simple bind');
+    assert.ok(req.indexOf(0x63, bindAt) > req.indexOf(Buffer.from('s3cret')), 'the search comes after the bind');
+  });
+
   test('each service is reported, with failures in plain words', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wp-check-'));
     fs.writeFileSync(path.join(dir, 'c.crt'), 'cert');
