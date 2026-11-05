@@ -1,6 +1,6 @@
 <!doctype html>
 <!--
-  PHA WiFi setup guide: the Linux server and the Ruckus vSZ.
+  Nexus WiFi setup guide: the Linux server and the Ruckus vSZ, for the sign-in page (captive portal).
   This is the source of docs/Nexus-setup-guide.pdf. To rebuild the PDF on Windows, from the repo root:
     & "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --headless --no-pdf-header-footer `
       --print-to-pdf="docs\Nexus-setup-guide.pdf" "file:///<full path>/docs/setup-guide.html"
@@ -9,7 +9,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>PHA WiFi setup guide</title>
+<title>Nexus WiFi setup guide</title>
 <style>
 @font-face {
   font-family: "Inter";
@@ -44,7 +44,7 @@
   size: A4;
   margin: 17mm 16mm 18mm 16mm;
   @bottom-left {
-    content: "PHA WiFi · Server and vSZ setup guide";
+    content: "Nexus WiFi · Server and vSZ setup guide";
     font-family: Inter, "Segoe UI", sans-serif;
     font-size: 7.5pt;
     color: #8e95ad;
@@ -188,24 +188,24 @@ td.k code { white-space: nowrap; }
   <div class="cover-top">
     <img class="cover-crest" src="../src/admin-ui/crest.png" alt="">
     <p class="cover-kicker">Protea Heights Academy · IT</p>
-    <h1>PHA WiFi setup guide</h1>
-    <p class="cover-sub">Setting up the Linux server and the Ruckus vSZ, from an empty server to the first pilot logins with school Google accounts.</p>
+    <h1>Nexus WiFi setup guide</h1>
+    <p class="cover-sub">Setting up the Linux server and the Ruckus vSZ for a sign-in page: from an empty server to the first pilot sign-ins with school Google accounts.</p>
   </div>
   <div class="cover-bottom">
     <h2>In this guide</h2>
     <ul class="cover-list">
       <li>What to collect and decide before you start</li>
       <li>Preparing an Ubuntu server: SSH, firewall, Docker</li>
-      <li>Google Workspace: Secure LDAP, sign-in, directory</li>
-      <li>Ruckus vSZ: RADIUS services, Nexus, Guest, API account</li>
+      <li>Google Workspace: Secure LDAP, admin sign-in, directory</li>
+      <li>Ruckus vSZ: the sign-in portal, Nexus Students, Nexus Staff, Guest</li>
       <li>The school firewall: what to open, and to whom</li>
-      <li>Finishing the server, then testing a real login</li>
-      <li>Setting up devices, and the two-week pilot</li>
+      <li>Finishing the server, then the first sign-in with a phone</li>
+      <li>What people do on their devices, and the two-week pilot</li>
       <li>Updates, backups, restores and troubleshooting</li>
     </ul>
     <div class="cover-meta">
       <div><b>For</b>School IT staff</div>
-      <div><b>Software</b>PHA WiFi 0.2.0</div>
+      <div><b>Software</b>PHA WiFi 0.2.0, sign-in page</div>
       <div><b>Date</b>5 November 2026</div>
       <div><b>Source</b>docs/setup-guide.html in the repo</div>
     </div>
@@ -216,10 +216,10 @@ td.k code { white-space: nowrap; }
 <section>
   <p class="part-label">Overview</p>
   <h1>How it fits together</h1>
-  <p class="lead">People join <strong>Nexus</strong> with their school Google email and password. The password is checked by Google, and the platform puts each person on the VLAN for their Google org unit. Visitors use <strong>Guest</strong> with keys that admins make in the dashboard.</p>
+  <p class="lead">People join an open network, <strong>Nexus Students</strong> or <strong>Nexus Staff</strong>. A sign-in page opens by itself, and they type their school Google email and password. Nothing is installed on the device. Google checks the password, the platform checks the person may use that network, and the device is remembered for the rest of the term. Visitors use <strong>Guest</strong> with keys that admins make in the dashboard.</p>
 
   <div class="figure">
-    <svg viewBox="0 0 720 322" xmlns="http://www.w3.org/2000/svg" font-family="Inter, Segoe UI, sans-serif">
+    <svg style="width:86%;margin:0 auto" viewBox="0 0 720 322" xmlns="http://www.w3.org/2000/svg" font-family="Inter, Segoe UI, sans-serif">
       <defs>
         <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" fill="#0b47b0"/>
@@ -240,74 +240,82 @@ td.k code { white-space: nowrap; }
       <rect x="22" y="118" width="172" height="42" rx="6" fill="#fff" stroke="#cfd6e4"/>
       <text x="108" y="143" font-size="10" text-anchor="middle" fill="#141a33" font-weight="600">Ruckus access points</text>
       <rect x="22" y="192" width="172" height="110" rx="6" fill="#fff" stroke="#02298e" stroke-width="1.4"/>
-      <text x="108" y="240" font-size="11" text-anchor="middle" fill="#12055b" font-weight="700">vSZ controller</text>
-      <text x="108" y="256" font-size="9" text-anchor="middle" fill="#5b6380">Nexus · Guest</text>
+      <text x="108" y="236" font-size="11" text-anchor="middle" fill="#12055b" font-weight="700">vSZ controller</text>
+      <text x="108" y="252" font-size="9" text-anchor="middle" fill="#5b6380">Nexus Students · Nexus Staff</text>
+      <text x="108" y="265" font-size="9" text-anchor="middle" fill="#5b6380">Guest</text>
       <line x1="108" y1="86" x2="108" y2="116" stroke="#0b47b0" stroke-width="1.5" marker-end="url(#ah)"/>
-      <text x="116" y="105" font-size="8.5" fill="#5b6380">WiFi</text>
+      <text x="116" y="105" font-size="8.5" fill="#5b6380">open WiFi</text>
       <line x1="108" y1="160" x2="108" y2="190" stroke="#0b47b0" stroke-width="1.5" marker-end="url(#ah)"/>
-      <text x="116" y="179" font-size="8.5" fill="#5b6380">802.1X</text>
 
       <!-- server -->
-      <text x="362" y="52" font-size="8.5" text-anchor="middle" fill="#5b6380">Admins' browsers, Let's Encrypt</text>
-      <line x1="362" y1="58" x2="362" y2="116" stroke="#0b47b0" stroke-width="1.5" marker-end="url(#ah)"/>
-      <text x="370" y="92" font-size="8.5" fill="#5b6380">TCP 80/443</text>
-      <rect x="276" y="118" width="172" height="42" rx="6" fill="#fff" stroke="#cfd6e4"/>
-      <text x="362" y="136" font-size="10" text-anchor="middle" fill="#141a33" font-weight="600">Caddy</text>
-      <text x="362" y="150" font-size="8.5" text-anchor="middle" fill="#5b6380">HTTPS and certificates</text>
-      <line x1="362" y1="160" x2="362" y2="190" stroke="#0b47b0" stroke-width="1.5" marker-end="url(#ah)"/>
-      <rect x="276" y="192" width="172" height="42" rx="6" fill="#fff" stroke="#02298e" stroke-width="1.4"/>
-      <text x="362" y="210" font-size="10" text-anchor="middle" fill="#12055b" font-weight="700">WiFi platform</text>
-      <text x="362" y="224" font-size="8.5" text-anchor="middle" fill="#5b6380">rules, dashboard, guest keys</text>
+      <rect x="276" y="44" width="172" height="42" rx="6" fill="#fff" stroke="#cfd6e4"/>
+      <text x="362" y="62" font-size="10" text-anchor="middle" fill="#141a33" font-weight="600">Caddy</text>
+      <text x="362" y="76" font-size="8.5" text-anchor="middle" fill="#5b6380">HTTPS: sign-in page, dashboard</text>
+      <line x1="362" y1="86" x2="362" y2="116" stroke="#0b47b0" stroke-width="1.5" marker-end="url(#ah)"/>
+      <rect x="276" y="118" width="172" height="116" rx="6" fill="#fff" stroke="#02298e" stroke-width="1.4"/>
+      <text x="362" y="160" font-size="11" text-anchor="middle" fill="#12055b" font-weight="700">WiFi platform</text>
+      <text x="362" y="176" font-size="8.5" text-anchor="middle" fill="#5b6380">sign-in page, rules,</text>
+      <text x="362" y="189" font-size="8.5" text-anchor="middle" fill="#5b6380">remembered devices,</text>
+      <text x="362" y="202" font-size="8.5" text-anchor="middle" fill="#5b6380">dashboard, guest keys</text>
       <rect x="276" y="260" width="172" height="42" rx="6" fill="#fff" stroke="#02298e" stroke-width="1.4"/>
       <text x="362" y="278" font-size="10" text-anchor="middle" fill="#12055b" font-weight="700">FreeRADIUS</text>
-      <text x="362" y="292" font-size="8.5" text-anchor="middle" fill="#5b6380">EAP-TTLS logins</text>
+      <text x="362" y="292" font-size="8.5" text-anchor="middle" fill="#5b6380">tickets, reconnects, usage</text>
       <line x1="362" y1="260" x2="362" y2="236" stroke="#0b47b0" stroke-width="1.5" marker-end="url(#ah)"/>
-      <text x="370" y="252" font-size="8.5" fill="#5b6380">Which VLAN? (local)</text>
+      <text x="370" y="252" font-size="8.5" fill="#5b6380">asks (local)</text>
 
       <!-- google -->
       <text x="614" y="62" font-size="8.5" text-anchor="middle" fill="#5b6380">Passwords are checked</text>
       <text x="614" y="75" font-size="8.5" text-anchor="middle" fill="#5b6380">only by Google</text>
+      <rect x="530" y="118" width="168" height="42" rx="6" fill="#fff" stroke="#cfd6e4"/>
+      <text x="614" y="136" font-size="10" text-anchor="middle" fill="#141a33" font-weight="600">Secure LDAP</text>
+      <text x="614" y="150" font-size="8.5" text-anchor="middle" fill="#5b6380">ldap.google.com</text>
       <rect x="530" y="192" width="168" height="42" rx="6" fill="#fff" stroke="#cfd6e4"/>
       <text x="614" y="210" font-size="10" text-anchor="middle" fill="#141a33" font-weight="600">Directory, Gmail, Drive</text>
       <text x="614" y="224" font-size="8.5" text-anchor="middle" fill="#5b6380">org unit, alerts, backups</text>
-      <rect x="530" y="260" width="168" height="42" rx="6" fill="#fff" stroke="#cfd6e4"/>
-      <text x="614" y="278" font-size="10" text-anchor="middle" fill="#141a33" font-weight="600">Secure LDAP</text>
-      <text x="614" y="292" font-size="8.5" text-anchor="middle" fill="#5b6380">ldap.google.com</text>
 
       <!-- cross-zone arrows -->
+      <line x1="196" y1="65" x2="274" y2="65" stroke="#0b47b0" stroke-width="1.5" marker-end="url(#ah)"/>
+      <text x="235" y="57" font-size="8.5" text-anchor="middle" fill="#12055b" font-weight="600">Sign-in page</text>
+      <text x="235" y="80" font-size="8" text-anchor="middle" fill="#5b6380">HTTPS 443</text>
       <line x1="196" y1="281" x2="274" y2="281" stroke="#0b47b0" stroke-width="1.5" marker-end="url(#ah)"/>
       <text x="235" y="268" font-size="8.5" text-anchor="middle" fill="#12055b" font-weight="600">RADIUS</text>
       <text x="235" y="296" font-size="7.5" text-anchor="middle" fill="#5b6380">UDP 1812/13</text>
       <line x1="274" y1="213" x2="196" y2="213" stroke="#0b47b0" stroke-width="1.5" marker-end="url(#ah)"/>
-      <text x="235" y="200" font-size="8.5" text-anchor="middle" fill="#12055b" font-weight="600">Guest keys</text>
-      <text x="235" y="228" font-size="8" text-anchor="middle" fill="#5b6380">TCP 8443</text>
+      <text x="235" y="192" font-size="8.5" text-anchor="middle" fill="#12055b" font-weight="600">Let on (NBI),</text>
+      <text x="235" y="203" font-size="8.5" text-anchor="middle" fill="#12055b" font-weight="600">guest keys</text>
+      <text x="235" y="228" font-size="7.5" text-anchor="middle" fill="#5b6380">TCP, port forwards</text>
+      <line x1="450" y1="139" x2="528" y2="139" stroke="#0b47b0" stroke-width="1.5" marker-end="url(#ah)"/>
+      <text x="489" y="126" font-size="8.5" text-anchor="middle" fill="#12055b" font-weight="600">Password</text>
+      <text x="489" y="154" font-size="8" text-anchor="middle" fill="#5b6380">LDAPS 636</text>
       <line x1="450" y1="213" x2="528" y2="213" stroke="#0b47b0" stroke-width="1.5" marker-end="url(#ah)"/>
       <text x="489" y="200" font-size="8.5" text-anchor="middle" fill="#12055b" font-weight="600">Lookups</text>
       <text x="489" y="228" font-size="8" text-anchor="middle" fill="#5b6380">HTTPS 443</text>
-      <line x1="450" y1="281" x2="528" y2="281" stroke="#0b47b0" stroke-width="1.5" marker-end="url(#ah)"/>
-      <text x="489" y="268" font-size="8.5" text-anchor="middle" fill="#12055b" font-weight="600">Password</text>
-      <text x="489" y="296" font-size="8" text-anchor="middle" fill="#5b6380">LDAPS 636</text>
     </svg>
-    <p class="caption">One login: the device sends the email and password inside a TLS tunnel to FreeRADIUS. FreeRADIUS checks the password with Google Secure LDAP. Only if it's right does it ask the platform whether this person may connect, and on which VLAN. The vSZ then puts the device on that VLAN.</p>
   </div>
+
+  <h2>One sign-in, step by step</h2>
+  <ol>
+    <li>A phone joins <strong>Nexus Students</strong>. The vSZ asks the server whether this device is remembered. If it is, and the person is still allowed, the phone is online at once and nothing below happens.</li>
+    <li>Otherwise the vSZ sends the phone's browser to <code>https://wifi.phahs.org.za/</code>, and the phone shows it in its "Log in to network" window.</li>
+    <li>The person types their email and password. The platform checks the password with <strong>Google Secure LDAP</strong>, then checks the domain, blocks, the Google directory (active? which org unit?), the rules, and that this is the right network for them.</li>
+    <li>The platform asks the vSZ to let the phone on, through the vSZ's <strong>Northbound Portal Interface (NBI)</strong>, with a one-time ticket instead of the password. The vSZ checks the ticket with FreeRADIUS, which asks the platform.</li>
+    <li>The phone is online on that network's VLAN, and the platform remembers it for 90 days.</li>
+  </ol>
+  <p class="small">The password goes only to Google, and is never stored or logged. The vSZ and RADIUS only ever see the one-time ticket, which works once, for two minutes.</p>
 
   <h2>Contents</h2>
   <ol class="toc">
     <li><span class="n">1</span><span class="t">Plan</span><span class="d">What to collect and decide first</span><span class="p">3</span></li>
     <li><span class="n">2</span><span class="t">Prepare the Linux server</span><span class="d">Ubuntu, SSH, firewall, Docker, the code</span><span class="p">4</span></li>
     <li><span class="n">3</span><span class="t">Google Workspace</span><span class="d">Secure LDAP, admin sign-in, directory, alerts</span><span class="p">6</span></li>
-    <li><span class="n">4</span><span class="t">Ruckus vSZ</span><span class="d">RADIUS services, both WLANs, API account, school firewall</span><span class="p">8</span></li>
-    <li><span class="n">5</span><span class="t">Finish the server and test</span><span class="d">Settings, secrets, start, a real login</span><span class="p">11</span></li>
-    <li><span class="n">6</span><span class="t">Devices and the pilot</span><span class="d">Setting up each kind of device, the go-live checklist</span><span class="p">14</span></li>
-    <li><span class="n">7</span><span class="t">Looking after it</span><span class="d">Updates, backups, restores, renewals</span><span class="p">16</span></li>
-    <li><span class="n">8</span><span class="t">When something doesn't work</span><span class="d">Symptoms, causes and fixes</span><span class="p">18</span></li>
-    <li><span class="n">A</span><span class="t">Ports and files</span><span class="d">Quick reference</span><span class="p">20</span></li>
+    <li><span class="n">4</span><span class="t">Ruckus vSZ</span><span class="d">RADIUS, the portal, the three networks, the school firewall</span><span class="p">8</span></li>
+    <li><span class="n">5</span><span class="t">Finish the server and test</span><span class="d">Settings, secrets, start, the first sign-in</span><span class="p">12</span></li>
+    <li><span class="n">6</span><span class="t">Devices and the pilot</span><span class="d">What people do, the go-live checklist</span><span class="p">15</span></li>
+    <li><span class="n">7</span><span class="t">Looking after it</span><span class="d">Updates, backups, restores, renewals</span><span class="p">17</span></li>
+    <li><span class="n">8</span><span class="t">When something doesn't work</span><span class="d">Symptoms, causes and fixes</span><span class="p">19</span></li>
+    <li><span class="n">A</span><span class="t">Ports and files</span><span class="d">Quick reference</span><span class="p">21</span></li>
   </ol>
 
-  <div class="note keep">
-    <span class="callout-title">Why the parts are in this order</span>
-    The platform won't start until it has the vSZ API details, and the vSZ needs the server's address and shared secret. So you prepare the server first (part 2), set up Google and the vSZ (parts 3 and 4), then come back to finish the server (part 5).
-  </div>
 </section>
 
 <!-- ======================= PART 1 ======================= -->
@@ -321,8 +329,8 @@ td.k code { white-space: nowrap; }
     <li><strong>A Linux VPS</strong> with a fixed public IP address: Ubuntu Server 24.04 LTS, 1 vCPU, 1 GB RAM and 20 GB of disk is plenty.</li>
     <li><strong>DNS access</strong> for <code>phahs.org.za</code>, to add two records.</li>
     <li><strong>A super admin account</strong> in the Google Admin console, and access to Google Cloud for the same domain.</li>
-    <li><strong>Admin access to the vSZ</strong> and to the school's firewall or router.</li>
-    <li><strong>VLANs for staff, learners and guests</strong> that already reach every access point's switch port, each with a DHCP scope.</li>
+    <li><strong>Admin access to the vSZ</strong> and to the school's firewall.</li>
+    <li><strong>VLANs for staff, learners and guests</strong> that already reach every access point's switch port, each with a DHCP scope and DNS.</li>
     <li>A PC with an SSH client. Windows 10 and 11 include <code>ssh</code> and <code>scp</code> in PowerShell.</li>
   </ul>
 
@@ -332,15 +340,16 @@ td.k code { white-space: nowrap; }
     <tbody>
       <tr><td class="k">Server public IP</td><td>198.51.100.20</td><td class="blank"></td></tr>
       <tr><td class="k">School public IP: where the vSZ's traffic appears on the internet</td><td>203.0.113.10</td><td class="blank"></td></tr>
-      <tr><td class="k">vSZ address the server uses for the API (port 8443)</td><td>203.0.113.10</td><td class="blank"></td></tr>
-      <tr><td class="k">vSZ software version</td><td>7.0</td><td class="blank"></td></tr>
+      <tr><td class="k">Outside port for the vSZ API (forwarded to vSZ 8443)</td><td>9443</td><td class="blank"></td></tr>
+      <tr><td class="k">Outside port for the vSZ NBI (forwarded to vSZ 9443)</td><td>9444</td><td class="blank"></td></tr>
+      <tr><td class="k">vSZ software version</td><td>6.1.1</td><td class="blank"></td></tr>
       <tr><td class="k">Your own public IP(s), for SSH</td><td>203.0.113.10</td><td class="blank"></td></tr>
-      <tr><td class="k">Staff VLAN</td><td>20</td><td class="blank"></td></tr>
-      <tr><td class="k">Learner VLAN</td><td>30</td><td class="blank"></td></tr>
-      <tr><td class="k">Guest VLAN</td><td>50</td><td class="blank"></td></tr>
-      <tr><td class="k">VLAN while the platform is down, or none</td><td>none</td><td class="blank"></td></tr>
-      <tr><td class="k">Google org unit for staff</td><td>/Staff</td><td class="blank"></td></tr>
+      <tr><td class="k">Staff network and VLAN</td><td>Nexus Staff, VLAN 1</td><td class="blank"></td></tr>
+      <tr><td class="k">Learner network and VLAN</td><td>Nexus Students, VLAN 10</td><td class="blank"></td></tr>
+      <tr><td class="k">Guest network and VLAN</td><td>Guest, VLAN 60</td><td class="blank"></td></tr>
+      <tr><td class="k">Google org units for staff</td><td>/Staff, /IT Staff</td><td class="blank"></td></tr>
       <tr><td class="k">Google org unit for learners</td><td>/Students</td><td class="blank"></td></tr>
+      <tr><td class="k">How long a device is remembered</td><td>90 days (a term)</td><td class="blank"></td></tr>
       <tr><td class="k">Dashboard admins</td><td>llotter@phahs.org.za</td><td class="blank"></td></tr>
       <tr><td class="k">Mailbox alerts are sent from</td><td>wifi-alerts@phahs.org.za</td><td class="blank"></td></tr>
       <tr><td class="k">People who get alerts</td><td>llotter@phahs.org.za</td><td class="blank"></td></tr>
@@ -349,14 +358,14 @@ td.k code { white-space: nowrap; }
 
   <div class="stop">
     <span class="callout-title">Secrets never go on this sheet</span>
-    The RADIUS shared secret, the platform token, the vSZ API password, the Google OAuth client secret, and the Google key and certificate files go in a password manager, never on paper, in email or in chat. Part 2 shows how to make the first two.
+    The RADIUS shared secret, the platform token, the vSZ API and NBI passwords, the Google OAuth client secret, the LDAP access credentials, and the Google key and certificate files go in a password manager, never on paper, in email or in chat. Part 2 shows how to make the first two.
   </div>
 
-  <h2>Decide: what happens if the platform is down</h2>
-  <p>If the platform stops while FreeRADIUS and Google are fine, FreeRADIUS follows <code>FALLBACK_VLAN</code>:</p>
+  <h2>If the server is down</h2>
   <ul>
-    <li><strong>Empty</strong> (the default): no new logins until the platform is back. Devices already connected stay connected.</li>
-    <li><strong>A VLAN number</strong>: anyone with a correct Google password gets on to that VLAN, and blocks and rules are skipped until the platform is back. If you choose this, use a restricted learner-style VLAN, never the staff VLAN.</li>
+    <li><strong>No new sign-ins and no reconnects</strong> on Nexus Students and Nexus Staff until the server is back. The sign-in page can't load, and remembered devices can't be checked.</li>
+    <li><strong>Devices already online stay online</strong> until their session ends, at most 12 hours.</li>
+    <li><strong>Guest keeps working.</strong> Guest keys live on the vSZ. Only making new keys needs the server.</li>
   </ul>
 </section>
 
@@ -371,8 +380,8 @@ td.k code { white-space: nowrap; }
     <li>Create the VPS with <strong>Ubuntu Server 24.04 LTS</strong>. If the provider has its own firewall, allow the same ports as in 2.4.</li>
     <li>Add two DNS <strong>A records</strong> pointing at the server's public IP:
       <ul>
-        <li><code>wifi.phahs.org.za</code>: the admin dashboard.</li>
-        <li><code>radius.phahs.org.za</code>: the certificate devices check when they log in.</li>
+        <li><code>wifi.phahs.org.za</code>: the sign-in page and the admin dashboard.</li>
+        <li><code>radius.phahs.org.za</code>: FreeRADIUS needs a certificate for this name to start. Devices never see it.</li>
       </ul>
     </li>
     <li>Check both from your PC. Each should print the server's IP:</li>
@@ -411,18 +420,12 @@ sudo dpkg-reconfigure -plow unattended-upgrades    <span class="c"># answer Yes<
 sudo install -m 0755 -d /etc/apt/keyrings
 sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
 sudo chmod a+r /etc/apt/keyrings/docker.asc
-sudo tee /etc/apt/sources.list.d/docker.sources &gt;/dev/null &lt;&lt;EOF
-Types: deb
-URIs: https://download.docker.com/linux/ubuntu
-Suites: $(. /etc/os-release &amp;&amp; echo "$VERSION_CODENAME")
-Components: stable
-Signed-By: /etc/apt/keyrings/docker.asc
-EOF
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" | sudo tee /etc/apt/sources.list.d/docker.list
 sudo apt-get update
 sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 sudo docker run --rm hello-world       <span class="c"># prints "Hello from Docker!"</span>
 sudo docker compose version</pre>
-  <p class="small">This guide runs Docker with <code>sudo</code>. Adding <code>itadmin</code> to the <code>docker</code> group would save typing, but that group is equivalent to root.</p>
+  <p class="small">Type the <code>echo</code> line as one line. If <code>apt-get update</code> says <em>Malformed entry</em>, the line was split or pasted with Windows line endings: run the <code>echo</code> line again. This guide runs Docker with <code>sudo</code>. Adding <code>itadmin</code> to the <code>docker</code> group would save typing, but that group is equivalent to root.</p>
 
   <h2><span class="num">2.4</span>Firewall</h2>
   <p>Only SSH from your own addresses, the web ports, and RADIUS from the school are let in. Allow SSH <strong>before</strong> turning the firewall on.</p>
@@ -434,9 +437,11 @@ sudo ufw allow from <var>SCHOOL_IP</var> to any port 1812:1813 proto udp
 sudo ufw enable
 sudo ufw status verbose</pre>
   <ul>
-    <li>Repeat the SSH line for each address you manage the server from. If your own IP changes often, use <code>sudo ufw allow 22/tcp</code> instead: SSH accepts keys only, so that's still safe.</li>
-    <li><var>SCHOOL_IP</var> is the address RADIUS from the vSZ arrives from (see 4.7). Part 8 shows how to read it from the logs if you're unsure.</li>
-    <li>All three containers use the host's network directly, without published ports, so these <code>ufw</code> rules apply to them as normal. Docker's usual habit of skipping <code>ufw</code> for published ports doesn't come into it.</li>
+    <li>Repeat the SSH line for each address you manage the server from. If your own IP changes often, use <code>sudo ufw allow 22/tcp</code> instead: with key-only SSH, that's still safe.</li>
+    <li>Ports 80 and 443 are open to everyone: phones load the sign-in page through them, and Let's Encrypt needs them for certificates.</li>
+    <li><var>SCHOOL_IP</var> is the address RADIUS from the vSZ arrives from (see 4.11). Part 8 shows how to read it from the logs if you're unsure.</li>
+    <li>The server only <em>connects out</em> to the vSZ (API and NBI), so no rule is needed here for those.</li>
+    <li>All three containers use the host's network directly, without published ports, so these <code>ufw</code> rules apply to them as normal.</li>
   </ul>
 
   <h2><span class="num">2.5</span>Get the code onto the server</h2>
@@ -444,7 +449,7 @@ sudo ufw status verbose</pre>
   <p class="where">On the server</p>
 <pre>sudo mkdir /opt/wifi-portal &amp;&amp; sudo chown $USER: /opt/wifi-portal
 git clone https://github.com/pha-llotter/wifi-platform.git /opt/wifi-portal</pre>
-  <p class="small">The repo holds only code and examples. Every real setting and secret lives in <code>/etc/wifi-portal</code> on the server and never goes into Git.</p>
+  <p class="small">The repo holds only code and examples. Every real setting and secret lives in <code>/etc/wifi-portal</code> on the server and never goes into Git. Keep your own copies in a folder that Git ignores, such as <code>server-config/</code> in your copy of the repo.</p>
 
   <h2><span class="num">2.6</span>Settings folders and the two secrets</h2>
 <pre>sudo mkdir -p /etc/wifi-portal/google-ldap /var/log/wifi-portal /var/lib/wifi-portal
@@ -464,7 +469,7 @@ openssl rand -hex 32     <span class="c"># 2: the platform token (FreeRADIUS ↔
 <section class="part">
   <p class="part-label">Part 3</p>
   <h1>Google Workspace</h1>
-  <p class="lead">Education Fundamentals includes everything here. You'll end up with three things for the server: the Secure LDAP certificate and key, an OAuth client for the dashboard sign-in, and a service account key for the directory, alerts and backups.</p>
+  <p class="lead">Education Fundamentals includes everything here. You'll end up with four things for the server: the Secure LDAP certificate, key and access credentials; an OAuth client for the dashboard sign-in; and a service account key for the directory, alerts and backups.</p>
 
   <h2><span class="num">3.1</span>Secure LDAP client: checks passwords</h2>
   <ol>
@@ -478,16 +483,17 @@ openssl rand -hex 32     <span class="c"># 2: the platform token (FreeRADIUS ↔
     <li><strong>Download the certificate.</strong> The zip holds a <code>.crt</code> and a <code>.key</code> file. Rename them <code>ldap-client.crt</code> and <code>ldap-client.key</code>.</li>
     <li>Set the client's <strong>Service status</strong> to <strong>On</strong>. It can take a few minutes, and sometimes longer, before Google accepts the certificate.</li>
     <li>Note the certificate's <strong>expiry date</strong>, shown on the client's page, and put a reminder in the calendar a month before it.</li>
-    <li><strong>Access credentials → Generate new credentials.</strong> Save the username and password: Google shows the password once. Some tenants, including phahs.org.za, let a client with only the certificate see the org units but no users, so every login would fail without them.</li>
+    <li><strong>Access credentials → Generate new credentials.</strong> Save the username and password: Google shows the password once. Some tenants, including phahs.org.za, let a client with only the certificate see the org units but no users, so every sign-in would fail without them.</li>
   </ol>
 
   <h2><span class="num">3.2</span>OAuth client: admin sign-in to the dashboard</h2>
   <ol>
-    <li>In <strong>Google Cloud console</strong> create a project, for example <code>PHA WiFi</code>.</li>
+    <li>In <strong>Google Cloud console</strong> create a project, for example <code>nexus-wifi</code>.</li>
     <li><strong>Google Auth Platform → Audience</strong>: set it to <strong>Internal</strong>, so only school accounts can sign in.</li>
     <li><strong>Clients → Create client</strong>: type <strong>Web application</strong>, authorised redirect URI <code>https://wifi.phahs.org.za/admin/oauth/callback</code>.</li>
     <li>Save the <strong>client ID</strong> and <strong>client secret</strong> in the password manager.</li>
   </ol>
+  <p class="small">This is only for admins signing in to the dashboard. The WiFi sign-in page doesn't use a "Sign in with Google" button, because Google blocks its own sign-in page inside the window phones open for WiFi sign-in. It uses a plain email and password form, checked by Secure LDAP.</p>
 
   <h2><span class="num">3.3</span>Service account: directory, alerts and backups</h2>
   <ol>
@@ -514,7 +520,7 @@ openssl rand -hex 32     <span class="c"># 2: the platform token (FreeRADIUS ↔
   </ul>
 
   <h2><span class="num">3.5</span>Check the org units</h2>
-  <p>In <strong>Directory → Organizational units</strong>, check the exact paths for staff and learners, for example <code>/Staff</code> and <code>/Students</code>, and fill them in on the worksheet. A rule matches its org unit and everything under it.</p>
+  <p>In <strong>Directory → Organizational units</strong>, check the exact paths for staff and learners, for example <code>/Staff</code>, <code>/IT Staff</code> and <code>/Students</code>, and fill them in on the worksheet. A rule matches its org unit and everything under it, so every org unit with people who should use the WiFi needs a rule, or a parent with one.</p>
 
   <h2><span class="num">3.6</span>Copy the files to the server</h2>
   <p class="where">On your PC (PowerShell), in the folder with the three files</p>
@@ -522,29 +528,29 @@ openssl rand -hex 32     <span class="c"># 2: the platform token (FreeRADIUS ↔
   <p class="where">On the server</p>
 <pre>sudo mv ~/ldap-client.crt ~/ldap-client.key /etc/wifi-portal/google-ldap/
 sudo mv ~/service-account.json /etc/wifi-portal/</pre>
-  <p>Then delete the copies on your PC, keeping them only in the password manager. Part 5 sets the permissions.</p>
+  <p>Keep your copies only in the password manager or a Git-ignored folder. Part 5 sets the permissions.</p>
 </section>
 
 <!-- ======================= PART 4 ======================= -->
 <section class="part">
   <p class="part-label">Part 4</p>
   <h1>Ruckus vSZ</h1>
-  <p class="lead">You'll create two RADIUS services that point at the server, the Nexus WLAN with dynamic VLANs, the Guest WLAN with Dynamic PSK, and an API account for guest keys. Then you'll open the school firewall.</p>
+  <p class="lead">You'll point two RADIUS services at the server, turn on the portal interface, make the sign-in portal, then create the three networks: Nexus Students, Nexus Staff and Guest. Last, you'll open two ports on the school firewall, for the server only.</p>
 
   <div class="note">
     <span class="callout-title">Menu names</span>
-    The paths below are for SmartZone 6.x and 7.x. In 5.x, the RADIUS services are under <strong>Services &amp; Profiles → Authentication</strong> and <strong>→ Accounting</strong>. The field names are the same.
+    The paths below are for <strong>SmartZone 6.1</strong> (Essentials). Other versions move some pages. If a menu isn't where this says, type its name into the <strong>search menu</strong> box at the top right of the vSZ. The field names are the same.
   </div>
 
   <h2><span class="num">4.1</span>Before you start</h2>
   <ul>
-    <li>The staff, learner and guest VLANs are tagged on every access point's switch port, and each has a DHCP scope.</li>
+    <li>The staff, learner and guest VLANs are tagged on every access point's switch port, and each has a DHCP scope and working DNS.</li>
     <li>You have the server's public IP and the <strong>RADIUS shared secret</strong> from 2.6.</li>
   </ul>
   <p>Use <strong>proxy</strong> mode, where the controller sends RADIUS for the APs, for both services. All RADIUS then comes from the vSZ, so FreeRADIUS only has to trust one address, and the APs' own addresses don't matter.</p>
 
   <h2><span class="num">4.2</span>RADIUS authentication service</h2>
-  <p><strong>Security → Authentication → Proxy (SZ Authenticator) → Create</strong></p>
+  <p><strong>Services → Authentication → Proxy (SZ Authenticator) → Create</strong></p>
   <table>
     <thead><tr><th>Field</th><th>Value</th></tr></thead>
     <tbody>
@@ -558,82 +564,159 @@ sudo mv ~/service-account.json /etc/wifi-portal/</pre>
   </table>
   <div class="warn">
     <span class="callout-title">The vSZ's "Test AAA" button will say it failed</span>
-    That test sends a plain username and password. This server refuses anything that isn't a real 802.1X login, on purpose. Use <code>test-login.sh</code> on the server instead (5.7), and a real phone (5.9).
+    That test sends a plain username and password. The server only accepts a one-time ticket from the sign-in page, or a remembered device, on purpose. Test with a real phone instead (5.8).
   </div>
 
   <h2><span class="num">4.3</span>RADIUS accounting service</h2>
-  <p><strong>Security → Accounting → Proxy → Create</strong>. Name it <code>Nexus accounting</code>, with the same server IP, port <code>1813</code> and the same shared secret. This is what feeds the <strong>Usage</strong> page.</p>
+  <p><strong>Services → Accounting → Proxy → Create</strong>. Name it <code>Nexus accounting</code>, with the same server IP, port <code>1813</code> and the same shared secret. This is what feeds the <strong>Usage</strong> page.</p>
 
-  <h2><span class="num">4.4</span>WLAN: Nexus (school accounts)</h2>
+  <h2><span class="num">4.4</span>Northbound Portal Interface (NBI)</h2>
+  <p>This is how the platform tells the vSZ "this device may go online". Search the menu for <code>Northbound</code>. In 6.1 it's under <strong>Administration → System</strong>.</p>
+  <table>
+    <thead><tr><th>Field</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Enable</td><td>Ticked</td></tr>
+      <tr><td class="k">User name</td><td><code>wifiplatform</code>. It goes in <code>portal.nbi.username</code>.</td></tr>
+      <tr><td class="k">Password</td><td>Long and random, at least 8 characters with a letter, a number and a special character such as <code>-</code>. It goes in <code>portal.nbi.password</code>.</td></tr>
+    </tbody>
+  </table>
+  <p class="small">The NBI listens on the vSZ's TCP port <strong>9443</strong>, with the same certificate as the web console. Older SmartZone versions ask for the password only: then leave <code>portal.nbi.username</code> out.</p>
+
+  <h2><span class="num">4.5</span>The sign-in portal</h2>
+  <p><strong>Services → Hotspots &amp; Portals → Hotspot (WISPr)</strong>, select the school's zone, then <strong>Create</strong>.</p>
+  <table>
+    <thead><tr><th>Field</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Name</td><td><code>Nexus sign-in</code></td></tr>
+      <tr><td class="k">Smart Client Support</td><td>None</td></tr>
+      <tr><td class="k">Logon URL</td><td><strong>External</strong>. Redirect unauthenticated users to <code>https://wifi.phahs.org.za/</code></td></tr>
+      <tr><td class="k">Redirected MAC format</td><td>Leave the default</td></tr>
+      <tr><td class="k">Start page</td><td><strong>Redirect to the URL that the user intends to visit</strong></td></tr>
+      <tr><td class="k">Session timeout</td><td><code>720</code> minutes (12 hours)</td></tr>
+      <tr><td class="k">Grace period</td><td><code>60</code> minutes</td></tr>
+      <tr><td class="k">Walled garden</td><td><code>wifi.phahs.org.za</code>, and nothing else</td></tr>
+      <tr><td class="k">HTTPS redirection</td><td>Leave the default</td></tr>
+    </tbody>
+  </table>
+  <div class="warn">
+    <span class="callout-title">Keep the walled garden to the one name</span>
+    Don't add Apple's or Google's "captive check" addresses, such as <code>captive.apple.com</code> or <code>connectivitycheck.gstatic.com</code>. If phones can reach those, they think they're already online and never open the sign-in page.
+  </div>
+
+  <h2><span class="num">4.6</span>WLAN: Nexus Students</h2>
   <p><strong>Network → Wireless → Wireless LANs</strong>, select the school's zone, <strong>Create</strong>.</p>
   <table>
     <thead><tr><th>Setting</th><th>Value</th></tr></thead>
     <tbody>
-      <tr><td class="k">Name and SSID</td><td><code>Nexus</code>. It must match <code>radius.ssid</code> in config.json.</td></tr>
-      <tr><td class="k">Authentication type</td><td>Standard usage</td></tr>
-      <tr><td class="k">Method</td><td><strong>802.1X EAP</strong></td></tr>
-      <tr><td class="k">Encryption</td><td>WPA2, AES. WPA2/WPA3 mixed also works.</td></tr>
+      <tr><td class="k">Name and SSID</td><td><code>Nexus Students</code>. It must match <code>portal.networks</code> in config.json <strong>exactly</strong>, including capitals and the space.</td></tr>
+      <tr><td class="k">Authentication type</td><td><strong>Hotspot (WISPr)</strong></td></tr>
+      <tr><td class="k">Method</td><td>Open</td></tr>
+      <tr><td class="k">Encryption</td><td><strong>None</strong>. People need no WiFi password.</td></tr>
+      <tr><td class="k">Hotspot (WISPr) portal</td><td><code>Nexus sign-in</code></td></tr>
+      <tr><td class="k">Bypass CNA</td><td><strong>Off.</strong> Phones must open the sign-in page by themselves.</td></tr>
       <tr><td class="k">Authentication service</td><td>Tick <strong>Use the controller as proxy</strong>, choose <code>Nexus RADIUS</code></td></tr>
       <tr><td class="k">Accounting service</td><td>Tick <strong>Use the controller as proxy</strong>, choose <code>Nexus accounting</code>, interim updates every <strong>10 minutes</strong></td></tr>
-      <tr><td class="k">Access VLAN</td><td>Your most restricted VLAN, for example the learner VLAN <code>30</code></td></tr>
-      <tr><td class="k">Dynamic VLAN (AAA override)</td><td><strong>Enabled.</strong> Without it, everyone lands on the access VLAN.</td></tr>
-      <tr><td class="k">802.11r Fast BSS Transition</td><td>Enabled</td></tr>
-      <tr><td class="k">OKC (opportunistic key caching)</td><td>Enabled</td></tr>
-      <tr><td class="k">MAC authentication, portals</td><td>Off</td></tr>
+      <tr><td class="k">MAC authentication bypass (no redirection)</td><td><strong>On</strong>, MAC format left at the default. This lets remembered devices reconnect without the page.</td></tr>
+      <tr><td class="k">Access VLAN</td><td>The learner VLAN, for example <code>10</code>. The same number as in <code>portal.networks</code>.</td></tr>
+      <tr><td class="k">Dynamic VLAN (AAA override)</td><td>Off. Each network has its own VLAN.</td></tr>
+      <tr><td class="k">Advanced → RADIUS options → Called Station ID</td><td><strong>AP MAC</strong>. The vSZ then also sends the network's name, so the server knows which network a device is on.</td></tr>
+      <tr><td class="k">802.11r fast roaming</td><td>Off</td></tr>
+      <tr><td class="k">Client isolation</td><td>On, if you like</td></tr>
       <tr><td class="k">WLAN group</td><td>Add it to the WLAN group the school's APs use</td></tr>
     </tbody>
   </table>
-  <ul>
-    <li><strong>Why fast roaming matters:</strong> without 802.11r or OKC, every move between APs is a full login and a Google check. That's slower for the user, and it uses up Google's Secure LDAP quota.</li>
-    <li><strong>Session length:</strong> the server sends a 12-hour session timeout, so a block or an org unit move reaches every device within a school day. If the WLAN has its own session timeout, leave it at its default.</li>
-    <li>If a few older devices can't see or join Nexus, try turning 802.11r off and keeping OKC on.</li>
-  </ul>
+  <div class="note">
+    <span class="callout-title">Can't find MAC authentication bypass?</span>
+    Look in the Hotspot (WISPr) part of the WLAN and under <strong>Advanced Options</strong>, or search the page for "MAC". If your version doesn't have it, carry on: sign-ins work the same, but devices see the sign-in page again each time they rejoin. Tell IT support, so the platform can remember devices another way.
+  </div>
 
-  <h2><span class="num">4.5</span>WLAN: Guest (visitors)</h2>
+  <h2><span class="num">4.7</span>WLAN: Nexus Staff</h2>
+  <p>In <strong>Wireless LANs</strong>, select <strong>Nexus Students</strong> and click <strong>Clone</strong>. If your version has no Clone, click <strong>Create</strong> and enter the same settings as 4.6. Then change two things:</p>
+  <ul>
+    <li><strong>Name and SSID:</strong> <code>Nexus Staff</code></li>
+    <li><strong>Access VLAN:</strong> the staff VLAN, for example <code>1</code></li>
+  </ul>
+  <p>Check that <strong>Called Station ID</strong> is still <strong>AP MAC</strong> on the copy.</p>
+
+  <h2><span class="num">4.8</span>Check nothing hides the sign-in page</h2>
+  <p><strong>Services → Hotspots &amp; Portals → Portal Detection &amp; Suppression</strong>. If a profile there is attached to the school's zone or to either Nexus WLAN, take it off. It can stop phones from showing the sign-in page.</p>
+
+  <h2><span class="num">4.9</span>WLAN: Guest (visitors)</h2>
   <table>
     <thead><tr><th>Setting</th><th>Value</th></tr></thead>
     <tbody>
       <tr><td class="k">Name and SSID</td><td><code>Guest</code>. It must match <code>dpsk.ssid</code> in config.json.</td></tr>
       <tr><td class="k">Authentication type, method</td><td>Standard usage, <strong>Open</strong></td></tr>
       <tr><td class="k">Encryption</td><td>WPA2, AES, with <strong>Dynamic PSK</strong> on (internal DPSK)</td></tr>
-      <tr><td class="k">DPSK type and length</td><td>Secure passphrase, <strong>12 to 16</strong> characters, so a key can be typed off a printed slip</td></tr>
+      <tr><td class="k">Passphrase</td><td>The vSZ asks for one even with Dynamic PSK. Use a long random one and keep it in the password manager. Guests never use it: they get their own keys.</td></tr>
+      <tr><td class="k">DPSK type and length</td><td><strong>Keyboard-Friendly</strong>, <strong>12 to 16</strong> characters, so a key can be typed off a printed slip</td></tr>
       <tr><td class="k">DPSK expiration</td><td><strong>Unlimited.</strong> The platform ends guest keys itself, on the day the admin chose.</td></tr>
-      <tr><td class="k">Access VLAN</td><td>The guest VLAN, for example <code>50</code></td></tr>
+      <tr><td class="k">Access VLAN</td><td>The guest VLAN, for example <code>60</code></td></tr>
       <tr><td class="k">Client isolation</td><td>On, so visitors' devices can't see each other</td></tr>
       <tr><td class="k">Accounting service</td><td><code>Nexus accounting</code>, if the vSZ offers it on a DPSK WLAN. Guests then show on the Usage page under their key's name.</td></tr>
     </tbody>
   </table>
   <p>Make guest keys in the dashboard, not in the vSZ. Keys that already exist on the vSZ can be brought in with <strong>Settings → Adopt keys</strong>.</p>
 
-  <h2><span class="num">4.6</span>API account for guest keys</h2>
+  <h2><span class="num">4.10</span>API account for guest keys</h2>
   <ol>
-    <li><strong>Administration → Admins and Roles</strong>. Create a role (a user group) limited to the school's zone, with permission to <strong>manage WLANs</strong>. DPSK keys belong to a WLAN.</li>
-    <li>Create an administrator <code>wifi-portal-api</code> in that group, with a long random password. Save the password in the password manager.</li>
-    <li>Don't use a super admin account. If the platform's WLAN list in 5.4 is refused with HTTP 403, the role is too narrow: widen it one step and try again.</li>
+    <li><strong>Administration → Admins and Roles → Roles → Create.</strong> Limit it to the school's zone, with these permissions:
+      <ul>
+        <li><strong>WLAN</strong> and <strong>User/Device/App</strong>: Full access. DPSK keys belong to a WLAN.</li>
+        <li><strong>SZ</strong>, <strong>AP</strong> and <strong>ICX</strong>: Read.</li>
+        <li><strong>Admin</strong>: none.</li>
+      </ul>
+    </li>
+    <li>Create an administrator <code>wifi-portal-api</code> with that role and a long random password. Save the password in the password manager.</li>
+    <li>Don't use a super admin account. If the WLAN list in 5.4 is refused with HTTP 403, the role is too narrow: widen it one step and try again.</li>
     <li>Open the vSZ web console, click the padlock in the browser, and note the certificate's <strong>SHA-256 fingerprint</strong>. You'll compare it in 5.4.</li>
   </ol>
 
-  <h2><span class="num">4.7</span>School firewall or router</h2>
+  <h2><span class="num">4.11</span>School firewall</h2>
+  <p>The server needs to reach two ports on the vSZ, through the school's public IP. Forward them from the server's IP <strong>only</strong>.</p>
   <table>
     <thead><tr><th>Direction</th><th>From</th><th>To</th><th>Port</th><th>For</th></tr></thead>
     <tbody>
-      <tr><td>Out</td><td>vSZ</td><td>Server IP</td><td>UDP 1812, 1813</td><td>RADIUS logins and accounting</td></tr>
-      <tr><td>In (port forward)</td><td><strong>Server IP only</strong></td><td>vSZ management IP</td><td>TCP 8443</td><td>Guest keys through the vSZ API</td></tr>
+      <tr><td>Out</td><td>vSZ</td><td>Server IP</td><td>UDP 1812, 1813</td><td>RADIUS: sign-ins, reconnects, usage</td></tr>
+      <tr><td>In (port forward)</td><td><strong>Server IP only</strong></td><td>vSZ, TCP 8443</td><td>Outside 9443 (example)</td><td>The vSZ API: guest keys. <code>dpsk.port</code></td></tr>
+      <tr><td>In (port forward)</td><td><strong>Server IP only</strong></td><td>vSZ, TCP 9443</td><td>Outside 9444 (example)</td><td>The NBI: letting devices on. <code>portal.nbi.port</code></td></tr>
     </tbody>
   </table>
+  <p class="small">The outside ports can be anything free. Many firewalls, including FortiGate, use 8443 for their own admin page, which is why the examples use 9443 and 9444.</p>
+
+  <h3>On a FortiGate</h3>
+  <ol>
+    <li><strong>Policy &amp; Objects → Addresses → Create</strong>: <code>wifi-server</code>, type Subnet, the server's IP with <code>/32</code>.</li>
+    <li><strong>Policy &amp; Objects → Virtual IPs → Create</strong>, twice:
+      <ul>
+        <li><code>vsz-api</code>: the WAN port with the school's public IP (or <code>any</code>), external IP the school's public IP, map to the vSZ's IP, <strong>Port forwarding</strong> on, TCP, external port <code>9443</code> → mapped port <code>8443</code>. Under <strong>Optional filters</strong>, set the source to the server's IP.</li>
+        <li><code>vsz-nbi</code>: the same, external port <code>9444</code> → mapped port <code>9443</code>.</li>
+      </ul>
+    </li>
+    <li><strong>Policy &amp; Objects → Services → Create</strong>: <code>VSZ-API</code> (TCP 8443) and <code>VSZ-NBI</code> (TCP 9443).</li>
+    <li><strong>Policy &amp; Objects → Firewall Policy → Create</strong>: name <code>WiFi server to vSZ API</code>. Fill it in as follows, then drag it above any deny policy from the WAN to that interface:
+      <ul>
+        <li><strong>Incoming:</strong> the WAN port, or the <strong>SD-WAN zone</strong> if the school uses SD-WAN.</li>
+        <li><strong>Outgoing:</strong> the vSZ's interface.</li>
+        <li><strong>Source:</strong> <code>wifi-server</code>. <strong>Destination:</strong> both Virtual IPs.</li>
+        <li><strong>Service:</strong> <code>VSZ-API</code> and <code>VSZ-NBI</code>. <strong>Action:</strong> Accept.</li>
+        <li><strong>NAT</strong> off, and security profiles off.</li>
+      </ul>
+    </li>
+  </ol>
+
   <div class="stop">
-    <span class="callout-title">Never open 8443 to the whole internet</span>
-    It's the vSZ's admin API. Limit the port forward to the server's IP. If 8443 is already open to everyone for remote management, restrict it now.
+    <span class="callout-title">Never open these ports to the whole internet</span>
+    They're the vSZ's admin API and portal interface. Limit both forwards to the server's IP.
   </div>
-  <p><strong>Where RADIUS comes from.</strong> With proxy mode and the vSZ at school, RADIUS reaches the server from the school's public IP, after the school's NAT. That's <code>VSZ_ADDRESS</code> in part 5, and the address in the <code>ufw</code> rule in 2.4. If the vSZ is hosted somewhere else, it's that site's public IP.</p>
-  <p class="small">RADIUS crosses the internet protected by the shared secret, the server's firewall rule and Message-Authenticator checks. If the school firewall and the server can share a WireGuard or IPsec tunnel, sending RADIUS through it is better still.</p>
+  <p><strong>Where RADIUS comes from.</strong> With proxy mode, RADIUS reaches the server from the public IP the <strong>vSZ's</strong> traffic leaves on, after the school's NAT. That's <code>VSZ_ADDRESS</code> in part 5, and the address in the <code>ufw</code> rule in 2.4. With SD-WAN and two ISPs, check it from a PC on the vSZ's network at <code>https://ifconfig.me</code>, and make sure the vSZ's traffic always leaves on that ISP.</p>
 </section>
 
 <!-- ======================= PART 5 ======================= -->
 <section class="part">
   <p class="part-label">Part 5</p>
   <h1>Finish the server and test</h1>
-  <p class="lead">Fill in the two settings files, read the vSZ's certificate fingerprint and IDs, start everything, and log in with a real school account, all before any device joins.</p>
+  <p class="lead">Fill in the two settings files, read the vSZ's certificate fingerprint and IDs, start everything, check every connection, and sign in with a real phone.</p>
 
   <h2><span class="num">5.1</span>Permissions</h2>
   <p>The platform runs as uid 1000 and reads config.json, the service account key and the LDAP certificate. Only Docker, as root, reads <code>radius.env</code>.</p>
@@ -642,6 +725,7 @@ sudo chown root:1000 config.json service-account.json google-ldap google-ldap/*
 sudo chmod 640 config.json service-account.json google-ldap/*
 sudo chmod 750 google-ldap
 sudo chown root:root radius.env &amp;&amp; sudo chmod 600 radius.env</pre>
+  <p class="small">After copying a new config.json with <code>scp</code>, run the first two lines again for it, or the platform can't read it.</p>
 
   <h2><span class="num">5.2</span>config.json: the platform</h2>
   <p>Edit it with <code>sudo nano /etc/wifi-portal/config.json</code>.</p>
@@ -652,18 +736,24 @@ sudo chown root:root radius.env &amp;&amp; sudo chmod 600 radius.env</pre>
       <tr><td class="k"><code>google.clientId</code>, <code>clientSecret</code></td><td>From the OAuth client (3.2)</td></tr>
       <tr><td class="k"><code>google.allowedDomains</code></td><td><code>["phahs.org.za"]</code>. Personal Gmail and other domains are always turned away.</td></tr>
       <tr><td class="k"><code>google.directory.adminEmail</code></td><td>A Workspace admin the service account acts as, to read the directory</td></tr>
-      <tr><td class="k"><code>google.ldap.identity</code>, <code>password</code></td><td>The LDAP client's access credentials (3.1), the same as in radius.env. Check connections uses them.</td></tr>
+      <tr><td class="k"><code>google.ldap.identity</code>, <code>password</code></td><td>The LDAP client's access credentials (3.1). The sign-in page uses them to check passwords.</td></tr>
       <tr><td class="k"><code>radius.apiToken</code></td><td>The <strong>platform token</strong> from 2.6</td></tr>
-      <tr><td class="k"><code>policy.rules</code></td><td>Org units to VLANs, from the worksheet. They can be changed later on the dashboard's Rules page.</td></tr>
-      <tr><td class="k"><code>dpsk.host</code></td><td>The vSZ address from the worksheet</td></tr>
-      <tr><td class="k"><code>dpsk.username</code>, <code>password</code></td><td>The vSZ API account (4.6)</td></tr>
+      <tr><td class="k"><code>policy.rules</code></td><td>Org units to VLANs, from the worksheet, for example <code>/Staff</code> and <code>/IT Staff</code> → 1, <code>/Students</code> → 10. They can be changed later on the dashboard's Rules page.</td></tr>
+      <tr><td class="k"><code>portal.networks</code></td><td>Each sign-in network's exact SSID and its VLAN: <code>{ "Nexus Students": 10, "Nexus Staff": 1 }</code>. A person may only use the network whose VLAN their rule gives them.</td></tr>
+      <tr><td class="k"><code>portal.rememberDays</code></td><td>How long a device is remembered: <code>90</code> for a term. <code>0</code> means sign in every time.</td></tr>
+      <tr><td class="k"><code>portal.nbi.host</code>, <code>port</code></td><td>The school's public IP, and the outside port for the NBI (4.11), for example <code>9444</code></td></tr>
+      <tr><td class="k"><code>portal.nbi.username</code>, <code>password</code></td><td>From 4.4</td></tr>
+      <tr><td class="k"><code>portal.nbi.tlsFingerprint</code></td><td>Filled in by 5.4</td></tr>
+      <tr><td class="k"><code>dpsk.host</code>, <code>port</code></td><td>The school's public IP, and the outside port for the vSZ API (4.11), for example <code>9443</code></td></tr>
+      <tr><td class="k"><code>dpsk.username</code>, <code>password</code></td><td>The vSZ API account (4.10)</td></tr>
       <tr><td class="k"><code>dpsk.tlsFingerprint</code>, <code>zoneId</code>, <code>wlanId</code></td><td>Filled in by 5.4</td></tr>
-      <tr><td class="k"><code>dpsk.guestVlanId</code></td><td>The guest VLAN, for example <code>50</code></td></tr>
+      <tr><td class="k"><code>dpsk.guestVlanId</code></td><td>The guest VLAN, for example <code>60</code></td></tr>
       <tr><td class="k"><code>alerts.from</code>, <code>alerts.to</code></td><td>The alert mailbox, and who gets alerts. Delete the whole <code>alerts</code> block to turn alerts off.</td></tr>
       <tr><td class="k"><code>backup.drive.folderId</code></td><td>The Drive folder ID (3.4). Delete the <code>drive</code> block if you don't use Drive backups.</td></tr>
+      <tr><td class="k"><code>branding.name</code></td><td>The name on the sign-in page and guides, for example <code>Nexus WiFi</code></td></tr>
       <tr><td class="k"><code>admin.emails</code></td><td>Who can sign in to the dashboard</td></tr>
-      <tr><td class="k"><code>admin.allowFrom</code></td><td>Optional: IPs or ranges the dashboard accepts, for example the school's public IP and yours. Empty means anywhere, with Google sign-in.</td></tr>
-      <tr><td class="k"><code>retentionDays</code></td><td>How long logins and usage are kept, for POPIA. 90 by default.</td></tr>
+      <tr><td class="k"><code>admin.allowFrom</code></td><td>Optional: IPs or ranges the dashboard accepts, for example the school's public IP and yours. Empty means anywhere, with Google sign-in. The sign-in page is never limited.</td></tr>
+      <tr><td class="k"><code>retentionDays</code></td><td>How long sign-ins and usage are kept, for POPIA. 90 by default.</td></tr>
     </tbody>
   </table>
 
@@ -672,13 +762,13 @@ sudo chown root:root radius.env &amp;&amp; sudo chmod 600 radius.env</pre>
   <table>
     <thead><tr><th>Setting</th><th>What to put</th></tr></thead>
     <tbody>
-      <tr><td class="k"><code>VSZ_ADDRESS</code></td><td>The address RADIUS arrives from (4.7), usually the school's public IP</td></tr>
+      <tr><td class="k"><code>VSZ_ADDRESS</code></td><td>The address RADIUS arrives from (4.11), usually the school's public IP</td></tr>
       <tr><td class="k"><code>RADIUS_SECRET</code></td><td>The <strong>RADIUS shared secret</strong> from 2.6, the same as on the vSZ</td></tr>
-      <tr><td class="k"><code>DEFAULT_DOMAIN</code></td><td><code>phahs.org.za</code>. A bare <code>t.smith</code> becomes <code>t.smith@phahs.org.za</code>.</td></tr>
-      <tr><td class="k"><code>LDAP_BASE_DN</code></td><td><code>dc=phahs,dc=org,dc=za</code></td></tr>
-      <tr><td class="k"><code>LDAP_IDENTITY</code>, <code>LDAP_PASSWORD</code></td><td>The LDAP client's access credentials (3.1)</td></tr>
       <tr><td class="k"><code>PLATFORM_TOKEN</code></td><td>The <strong>platform token</strong> from 2.6, the same as <code>radius.apiToken</code></td></tr>
-      <tr><td class="k"><code>FALLBACK_VLAN</code></td><td>Your decision from part 1: empty, or a restricted VLAN number</td></tr>
+      <tr><td class="k"><code>DEFAULT_DOMAIN</code></td><td><code>phahs.org.za</code></td></tr>
+      <tr><td class="k"><code>LDAP_BASE_DN</code>, <code>LDAP_IDENTITY</code>, <code>LDAP_PASSWORD</code></td><td><code>dc=phahs,dc=org,dc=za</code>, and the LDAP access credentials (3.1)</td></tr>
+      <tr><td class="k"><code>FALLBACK_VLAN</code></td><td>Leave empty. The sign-in networks don't use it.</td></tr>
+      <tr><td class="k"><code>RADIUS_DEBUG</code></td><td><code>0</code>. Set it to <code>1</code> only while testing (8.1).</td></tr>
       <tr><td class="k">Everything else</td><td>Leave as it is</td></tr>
     </tbody>
   </table>
@@ -688,14 +778,14 @@ sudo chown root:root radius.env &amp;&amp; sudo chmod 600 radius.env</pre>
 <pre>cd /opt/wifi-portal
 sudo docker compose build
 sudo docker compose run --rm wifi-portal node scripts/vsz-fingerprint.js /etc/wifi-portal/config.json</pre>
-  <p>Compare the fingerprint with the one you noted in 4.6. If they match, paste it into <code>dpsk.tlsFingerprint</code>. If they don't, stop: something between the server and the vSZ isn't the vSZ.</p>
+  <p>Compare the fingerprint with the one you noted in 4.10. If they match, paste it into <strong>both</strong> <code>dpsk.tlsFingerprint</code> and <code>portal.nbi.tlsFingerprint</code>: the API and the NBI use the same certificate. If they don't match, stop: something between the server and the vSZ isn't the vSZ.</p>
 <pre>sudo docker compose run --rm wifi-portal node scripts/vsz-wlans.js /etc/wifi-portal/config.json</pre>
   <p>This lists each zone and WLAN with its ID. Copy the school zone's <code>zoneId</code>, and the <strong>Guest</strong> <code>wlanId</code>, into config.json.</p>
 
   <h2><span class="num">5.5</span>Start everything</h2>
   <div class="warn">
     <span class="callout-title">Start it in the evening</span>
-    FreeRADIUS restarts itself every 24 hours, counted from when it started, to pick up renewed certificates. The restart takes a few seconds, and logins in progress during it fail. Starting it after school puts that restart at night.
+    FreeRADIUS restarts itself every 24 hours, counted from when it started. The restart takes a few seconds, and sign-ins during it fail. Starting it after school puts that restart at night.
   </div>
 <pre>cd /opt/wifi-portal
 sudo docker compose up -d
@@ -705,91 +795,97 @@ sudo docker compose logs -f freeradius wifi-portal  <span class="c"># Ctrl+C sto
     <li>On the very first start, Caddy gets both certificates from Let's Encrypt within a minute, and FreeRADIUS waits for them.</li>
     <li>After a few minutes <code>docker compose ps</code> should show all three as <strong>healthy</strong>.</li>
     <li>If <code>wifi-portal</code> keeps restarting, <code>sudo docker compose logs wifi-portal</code> starts with <strong>Invalid config:</strong> and a list of what to fix in config.json.</li>
+    <li>After changing config.json later, <code>sudo docker compose restart wifi-portal</code>. After changing radius.env, <code>sudo docker compose up -d freeradius</code>.</li>
   </ul>
 
   <h2><span class="num">5.6</span>Check the connections</h2>
 <pre>sudo docker compose exec wifi-portal node scripts/check-connections.js /etc/wifi-portal/config.json</pre>
-  <p>It tries the Google directory, Secure LDAP with the client certificate, Drive, the vSZ API, and sends a test alert email (<code>--no-email</code> skips that). Each line says what's wrong if it fails. The dashboard has the same check under <strong>Settings → Check connections</strong>.</p>
+  <p>It tries each connection the platform needs, and sends a test alert email (<code>--no-email</code> skips that). Each line says what's wrong if it fails. The dashboard has the same check under <strong>Settings → Check connections</strong>.</p>
+  <table>
+    <thead><tr><th style="width:34%">Line</th><th>Good result</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Google directory</td><td>✓, with the admin it acts as</td></tr>
+      <tr><td class="k">Google Secure LDAP</td><td>✓, with the certificate and access credentials</td></tr>
+      <tr><td class="k">Alert email</td><td>✓, and the test email arrives</td></tr>
+      <tr><td class="k">vSZ API (guest keys)</td><td>✓, pinned</td></tr>
+      <tr><td class="k">vSZ portal interface (sign-ins)</td><td>✓, pinned. It asks about a made-up device, so <em>Not found</em> (code 300) is the right answer.</td></tr>
+      <tr><td class="k">FreeRADIUS</td><td>Grey until the first phone signs in</td></tr>
+    </tbody>
+  </table>
 
-  <h2><span class="num">5.7</span>Test a real login, without the vSZ</h2>
-  <p>This logs in to FreeRADIUS on the server the way a phone does, with EAP-TTLS/PAP, and checks the certificate name. It asks for the password, which never appears on the command line. The first run builds a small test image.</p>
-<pre>cd /opt/wifi-portal
-sudo ./scripts/test-login.sh <var>a.staff.member</var>@phahs.org.za     <span class="c"># expect: Accepted on VLAN 20</span>
-sudo ./scripts/test-login.sh <var>a.learner</var>@phahs.org.za          <span class="c"># expect: Accepted on VLAN 30</span>
-sudo ./scripts/test-login.sh <var>a.staff.member</var>@phahs.org.za     <span class="c"># wrong password: expect Refused</span></pre>
-  <p>Every test shows up in the dashboard under <strong>Activity</strong> as device <code>02:00:00:00:00:99</code>, with the reason for any refusal.</p>
+  <h2><span class="num">5.7</span>Sign in to the dashboard</h2>
+  <p>Open <code>https://wifi.phahs.org.za/admin</code> and sign in with an account in <code>admin.emails</code>. <strong>Overview → Health</strong> shows whether FreeRADIUS is calling, and the state of the Google directory, the vSZ, backups and alerts.</p>
+  <p>Opening <code>https://wifi.phahs.org.za/</code> on a PC shows a short page saying which networks to join. The sign-in form only appears when the vSZ sends a phone there.</p>
 
-  <h2><span class="num">5.8</span>Sign in to the dashboard</h2>
-  <p>Open <code>https://wifi.phahs.org.za/admin</code> and sign in with an account in <code>admin.emails</code>. <strong>Overview → Health</strong> shows whether FreeRADIUS is calling, and the state of the Google directory, the vSZ API, backups and alerts.</p>
-
-  <h2><span class="num">5.9</span>The first phone through the vSZ</h2>
+  <h2><span class="num">5.8</span>The first phone</h2>
+  <p>Leave <code>RADIUS_DEBUG=1</code> in radius.env for this test, so the log shows exactly what the vSZ sends. Then:</p>
   <ol>
-    <li>Set up one Android phone as in part 6, and connect it to Nexus with a staff account.</li>
-    <li>In the dashboard, <strong>Activity</strong> shows the login and its VLAN.</li>
+    <li>On a phone, forget any old Nexus network, then join <strong>Nexus Staff</strong>. The sign-in page should open by itself within a few seconds.</li>
+    <li>Sign in with a staff account. The page says <strong>You're connected</strong>.</li>
+    <li>In the dashboard, <strong>Activity</strong> shows <code>signed_in</code> from the sign-in page, and <strong>People</strong> shows the device and the network.</li>
     <li>On the phone, check the IP address is from the staff VLAN's DHCP scope.</li>
+    <li>Turn WiFi off and on. The phone should reconnect <strong>without</strong> the sign-in page, and Activity shows <code>signed_in</code> from a remembered device.</li>
     <li>After 10 to 20 minutes, the phone appears under <strong>Usage → Online now</strong>.</li>
   </ol>
-  <p>If the login is refused or nothing arrives, go to part 8.</p>
+  <p>Then look at the log on the server:</p>
+<pre>cd /opt/wifi-portal
+sudo docker compose logs --tail 60 wifi-portal freeradius | grep -v Status-Server</pre>
+  <p>If the sign-in is refused or nothing arrives, go to part 8. When it all works, set <code>RADIUS_DEBUG=0</code> and run <code>sudo docker compose up -d freeradius</code>.</p>
 </section>
 
 <!-- ======================= PART 6 ======================= -->
 <section class="part">
   <p class="part-label">Part 6</p>
   <h1>Devices and the pilot</h1>
-  <p class="lead">Each kind of device is set up once, in a way that checks it's talking to the real server. Then run Nexus next to the current network for one or two weeks before everyone moves.</p>
+  <p class="lead">There's nothing to set up on any device: no profile, no certificate, no settings. Run the new networks next to the current one for one or two weeks before everyone moves.</p>
 
-  <div class="stop">
-    <span class="callout-title">Always set devices up this way, never by hand</span>
-    Google can only check a plain password, so inside the encrypted tunnel the password is sent as it is (PAP). That's safe only when the device checks it's talking to <code>radius.phahs.org.za</code>. A device set up by hand, especially Windows with its "Continue connecting?" prompt, will give the password to a fake access point with the same name. The profiles below, and the Android and Chromebook <strong>Domain</strong> setting, prevent that.
-  </div>
-
-  <h2><span class="num">6.1</span>Making the Apple and Windows profiles</h2>
-<pre>cd /opt/wifi-portal
-sudo docker compose run --rm wifi-portal node scripts/apple-profile.js /etc/wifi-portal/config.json /var/lib/wifi-portal/Nexus.mobileconfig
-sudo docker compose run --rm wifi-portal node scripts/windows-profile.js /etc/wifi-portal/config.json /var/lib/wifi-portal/Nexus.xml
-sudo cp /var/lib/wifi-portal/Nexus.* ~ &amp;&amp; sudo chown $USER ~/Nexus.*</pre>
-  <p class="where">On your PC (PowerShell)</p>
-<pre>scp itadmin@<var>SERVER_IP</var>:~/Nexus.* .</pre>
-  <p class="small">Neither file holds a secret, so they can be emailed or put on the intranet.</p>
-
-  <h2><span class="num">6.2</span>Each kind of device</h2>
+  <h2><span class="num">6.1</span>What people do</h2>
+  <ol>
+    <li>Join the network for their group: learners <strong>Nexus Students</strong>, staff <strong>Nexus Staff</strong>. There's no WiFi password.</li>
+    <li>The sign-in page opens by itself. They type their school email and password. Just the username, such as <code>t.smith</code>, works too.</li>
+    <li>Done. The device is remembered for the rest of the term (90 days), and reconnects by itself.</li>
+  </ol>
   <table>
-    <thead><tr><th style="width:22%">Device</th><th>How</th></tr></thead>
+    <thead><tr><th style="width:30%">If</th><th>Then</th></tr></thead>
     <tbody>
-      <tr><td class="k">iPhone, iPad, Mac</td><td>Send <code>Nexus.mobileconfig</code> by email or AirDrop and open it. It installs Nexus and asks for the email and password once. Without the profile, Apple devices send the password in a form Google can't check, so they won't connect.</td></tr>
-      <tr><td class="k">Android</td><td>WiFi → Nexus → EAP method <strong>TTLS</strong>, Phase 2 <strong>PAP</strong>, CA certificate <strong>Use system certificates</strong>, Domain <code>radius.phahs.org.za</code> (required), Identity: the school email. Leave anonymous identity empty.</td></tr>
-      <tr><td class="k">Windows 10/11</td><td>On each laptop: <code>netsh wlan add profile filename="Nexus.xml" user=all</code>, or deploy it with Intune or Group Policy. Then connect and enter the email and password once.</td></tr>
-      <tr><td class="k">Managed Chromebooks</td><td>Admin console → <strong>Devices → Networks → Wi-Fi</strong>: EAP-TTLS, inner protocol PAP, Server CA <strong>Default</strong>, Subject match / Domain <code>radius.phahs.org.za</code>.</td></tr>
-      <tr><td class="k">Personal Chromebooks</td><td>The same settings, typed in by the user.</td></tr>
-      <tr><td class="k">Very old Android</td><td>Without a Domain field, the phone can't check the server. Send it to the Guest network rather than turning checking off.</td></tr>
+      <tr><td class="k">The page doesn't open by itself</td><td>Open any <code>http://</code> website in the browser, for example <code>http://neverssl.com</code>.</td></tr>
+      <tr><td class="k">The page says their account uses the other network</td><td>Join that one. Learners can't use Nexus Staff, and staff can't use Nexus Students.</td></tr>
+      <tr><td class="k">"That email or password is wrong"</td><td>It's their Google password. After 5 wrong tries the account must wait 15 minutes.</td></tr>
+      <tr><td class="k">The page asks again each time</td><td>The device changes its "private WiFi address". On iPhone, set <strong>Private Wi-Fi Address</strong> for that network to <strong>Fixed</strong>, not <strong>Rotating</strong>. Android keeps one address per network by default.</td></tr>
+      <tr><td class="k">They change their Google password</td><td>Nothing changes: the device stays remembered. A blocked or suspended account is cut off at its next reconnect.</td></tr>
     </tbody>
   </table>
 
+  <h2><span class="num">6.2</span>The connection guide</h2>
+  <p>The dashboard's <strong>Settings → Connection guide</strong> prints a one-page guide for staff and learners, with the networks, the steps above and a privacy note. Check its privacy wording against the school's ICT policy before handing it out.</p>
+
   <h2><span class="num">6.3</span>Pilot checklist</h2>
-  <p>Run it with IT and a few teachers. Tick each item before telling everyone.</p>
+  <p>Run it with IT and a few teachers and learners. Tick each item before telling everyone.</p>
   <table class="check">
     <thead><tr><th></th><th style="width:26%">Check</th><th>How</th></tr></thead>
     <tbody>
       <tr><td><span class="box"></span></td><td class="k">Every connection works</td><td><strong>Settings → Check connections</strong> is all green, and the test email arrived.</td></tr>
-      <tr><td><span class="box"></span></td><td class="k">Google checks passwords</td><td><code>test-login.sh</code> with a staff and a learner account: accepted on their VLANs. With a wrong password: refused.</td></tr>
-      <tr><td><span class="box"></span></td><td class="k">The vSZ applies the VLAN</td><td>A staff phone and a learner phone get addresses from their own VLANs. <strong>People</strong> shows the VLAN each login was given.</td></tr>
+      <tr><td><span class="box"></span></td><td class="k">Passwords</td><td>A staff and a learner account sign in. A wrong password is refused with "That email or password is wrong".</td></tr>
+      <tr><td><span class="box"></span></td><td class="k">The right network</td><td>A learner on Nexus Staff is told to use Nexus Students. A staff member on Nexus Students is told to use Nexus Staff.</td></tr>
+      <tr><td><span class="box"></span></td><td class="k">The right VLAN</td><td>A staff phone and a learner phone get addresses from their own VLANs.</td></tr>
+      <tr><td><span class="box"></span></td><td class="k">Remembered devices</td><td>Turn WiFi off and on, and walk out of range and back: no sign-in page. Activity shows a remembered device.</td></tr>
       <tr><td><span class="box"></span></td><td class="k">Usage arrives</td><td>After 10 to 20 minutes online, the phone shows under <strong>Usage → Online now</strong> with growing figures.</td></tr>
-      <tr><td><span class="box"></span></td><td class="k">Every kind of device</td><td>iPhone with the profile, a Mac, Android with the Domain set, a Windows laptop with the profile, a school Chromebook and a personal one.</td></tr>
-      <tr><td><span class="box"></span></td><td class="k">Turning people away</td><td>Block a test account: its next login is refused, with the reason under <strong>Activity</strong>. Unblock it. Do the same with a suspended test account in Google.</td></tr>
-      <tr><td><span class="box"></span></td><td class="k">Roaming</td><td>Walk across the school on a video call: it shouldn't drop, and Activity shouldn't fill with logins.</td></tr>
-      <tr><td><span class="box"></span></td><td class="k">Guests</td><td>Make a guest key, print the slip, join the Guest network with it, then end it: the phone can't join again. Note whether the vSZ also drops it at once.</td></tr>
-      <tr><td><span class="box"></span></td><td class="k">Fallback</td><td>After school, <code>sudo docker compose stop wifi-portal</code>, and check new logins do what you decided in part 1. Then <code>sudo docker compose start wifi-portal</code>.</td></tr>
+      <tr><td><span class="box"></span></td><td class="k">Every kind of device</td><td>iPhone, Android, a Windows laptop, a Mac, a school Chromebook and a personal one. Each should open the page by itself.</td></tr>
+      <tr><td><span class="box"></span></td><td class="k">Turning people away</td><td>Block a test account: its devices are forgotten, and it can't sign in again. The reason shows under <strong>Activity</strong>. Unblock it. Do the same with a suspended test account in Google.</td></tr>
+      <tr><td><span class="box"></span></td><td class="k">Guests</td><td>Make a guest key, print the slip, join Guest with it, then end it: the phone can't join again.</td></tr>
+      <tr><td><span class="box"></span></td><td class="k">Server down</td><td>After school, <code>sudo docker compose stop wifi-portal</code>. Phones already online stay online, and new sign-ins fail. Then <code>sudo docker compose start wifi-portal</code>.</td></tr>
       <tr><td><span class="box"></span></td><td class="k">Backups</td><td><strong>Settings → Back up now</strong>. With Drive set up, the copy appears in the Shared Drive.</td></tr>
-      <tr><td><span class="box"></span></td><td class="k">A busy morning</td><td>During the first full morning, watch <strong>Overview</strong> for <code>directory_error</code> and slow logins.</td></tr>
+      <tr><td><span class="box"></span></td><td class="k">A busy morning</td><td>During the first full morning, watch <strong>Overview</strong> for <code>directory_error</code> and <code>portal_error</code>.</td></tr>
     </tbody>
   </table>
 
   <h2><span class="num">6.4</span>Going live</h2>
   <ul>
-    <li>Print the connection guide from <strong>Settings → Connection guide</strong>. Check its privacy wording against the school's ICT policy first.</li>
-    <li>Send the Apple and Windows profiles, and push the network to managed Chromebooks.</li>
+    <li>Print and hand out the connection guide (6.2).</li>
+    <li>Turn off the old school network, or hide it, once everyone has moved.</li>
+    <li>Check <code>RADIUS_DEBUG=0</code> in radius.env.</li>
     <li>Point an uptime monitor (Uptime Kuma, or your RMM) at <code>https://wifi.phahs.org.za/healthz</code>.</li>
-    <li>Watch for <code>directory_error</code> alerts in the first busy week, and keep fast roaming on.</li>
+    <li>Watch for <code>directory_error</code> and <code>portal_error</code> alerts in the first busy week.</li>
   </ul>
 </section>
 
@@ -804,7 +900,7 @@ sudo cp /var/lib/wifi-portal/Nexus.* ~ &amp;&amp; sudo chown $USER ~/Nexus.*</pr
 <pre>git pull
 sudo docker compose up -d --build
 sudo docker compose ps</pre>
-  <p>Only containers whose code changed are restarted. Connected devices stay connected while the platform restarts.</p>
+  <p>Only containers whose code changed are restarted. Connected devices stay connected while the platform restarts. Sign-ins during the restart fail for a few seconds.</p>
 
   <h2><span class="num">7.2</span>Server updates and reboots</h2>
   <ul>
@@ -816,7 +912,7 @@ sudo docker compose ps</pre>
   <table>
     <thead><tr><th style="width:30%">What</th><th>Where it's kept</th></tr></thead>
     <tbody>
-      <tr><td class="k">The database: logins, people, usage, guest keys, rules</td><td>Copied every night to <code>/var/lib/wifi-portal/backups/</code> (the last 14), and to the Drive folder if set up (the last 30, gzipped).</td></tr>
+      <tr><td class="k">The database: sign-ins, people, remembered devices, usage, guest keys, rules</td><td>Copied every night to <code>/var/lib/wifi-portal/backups/</code> (the last 14), and to the Drive folder if set up (the last 30, gzipped).</td></tr>
       <tr><td class="k">Settings and secrets in <code>/etc/wifi-portal</code></td><td><strong>Not backed up automatically.</strong> Make a copy after setup and after each change, as below.</td></tr>
       <tr><td class="k">The code</td><td>On GitHub: <code>github.com/pha-llotter/wifi-platform</code></td></tr>
       <tr><td class="k">Let's Encrypt certificates</td><td>Not needed: Caddy gets new ones by itself.</td></tr>
@@ -837,23 +933,25 @@ sudo docker compose start wifi-portal</pre>
   <ul>
     <li>Moving <code>wifi-portal.db*</code> aside also moves the database's <code>-wal</code> and <code>-shm</code> files. Left in place, they would be mixed into the restored copy.</li>
     <li>For a copy from Drive, run <code>gunzip</code> on it first.</li>
-    <li>Then use <strong>Settings → Adopt keys</strong> to bring back guest keys made since that copy.</li>
+    <li>Then use <strong>Settings → Adopt keys</strong> to bring back guest keys made since that copy. Devices remembered since that copy sign in once more.</li>
   </ul>
 
   <h2><span class="num">7.5</span>Rebuilding a lost server</h2>
   <ol>
-    <li>Do 2.1 to 2.5 on a new server. If the IP changed, update both DNS records, the vSZ RADIUS services, the school's port forward and the <code>ufw</code> rules.</li>
+    <li>Do 2.1 to 2.5 on a new server. If the IP changed, update both DNS records, the vSZ RADIUS services, the two port forwards' source filter and the <code>ufw</code> rules.</li>
     <li>Put back <code>/etc/wifi-portal</code> from your copy: <code>sudo tar xzf wifi-portal-etc-<var>DATE</var>.tgz -C /etc</code>. Skip 2.6: it would overwrite the restored settings with the examples.</li>
     <li>Make the data folders: <code>sudo mkdir -p /var/log/wifi-portal /var/lib/wifi-portal &amp;&amp; sudo chown 1000 /var/log/wifi-portal /var/lib/wifi-portal</code>. Then restore the latest database (7.4) into <code>/var/lib/wifi-portal</code>.</li>
-    <li>Start as in 5.5, then check as in 5.6 and 5.7.</li>
+    <li>Start as in 5.5, then check as in 5.6 and 5.8.</li>
   </ol>
 
   <h2><span class="num">7.6</span>Things that expire or change</h2>
   <table>
     <thead><tr><th style="width:30%">What</th><th>What to do</th></tr></thead>
     <tbody>
-      <tr><td class="k">Google Secure LDAP certificate</td><td>Before it expires, generate a new one on the LDAP client, copy it to <code>/etc/wifi-portal/google-ldap/</code> with the same names and permissions, then <code>sudo docker compose restart freeradius</code> after school.</td></tr>
-      <tr><td class="k">The vSZ's own certificate</td><td>If it's ever replaced, guest keys stop working with a fingerprint error. Run 5.4 again, compare, and update <code>dpsk.tlsFingerprint</code>.</td></tr>
+      <tr><td class="k">Google Secure LDAP certificate</td><td>Before it expires, generate a new one on the LDAP client, copy it to <code>/etc/wifi-portal/google-ldap/</code> with the same names and permissions, then <code>sudo docker compose restart wifi-portal freeradius</code> after school.</td></tr>
+      <tr><td class="k">The vSZ's own certificate</td><td>If it's ever replaced, sign-ins and guest keys stop with a fingerprint error. Run 5.4 again, compare, and update both fingerprints.</td></tr>
+      <tr><td class="k">The NBI password</td><td>Change it on the vSZ (4.4) and in <code>portal.nbi.password</code> together, then <code>sudo docker compose restart wifi-portal</code>.</td></tr>
+      <tr><td class="k">A network's name or VLAN</td><td>Change the WLAN and <code>portal.networks</code> together. The SSID must match exactly.</td></tr>
       <tr><td class="k">Let's Encrypt</td><td>Automatic. Caddy renews, and FreeRADIUS picks it up at its daily restart.</td></tr>
       <tr><td class="k">IT staff changes</td><td>Update <code>admin.emails</code> and <code>alerts.to</code>, then <code>sudo docker compose restart wifi-portal</code>.</td></tr>
       <tr><td class="k">Changing the RADIUS secret</td><td>Change it on both vSZ services and in <code>radius.env</code> at the same time, after school, then <code>sudo docker compose up -d freeradius</code>.</td></tr>
@@ -862,9 +960,9 @@ sudo docker compose start wifi-portal</pre>
   </table>
 
   <h2><span class="num">7.7</span>Logs</h2>
-<pre>sudo docker compose logs --tail 200 freeradius      <span class="c"># RADIUS: logins and refusals</span>
-sudo docker compose logs --tail 200 wifi-portal     <span class="c"># the platform</span>
-sudo tail -f /var/log/wifi-portal/wifi.jsonl        <span class="c"># every login and admin action</span></pre>
+<pre>sudo docker compose logs --tail 200 freeradius      <span class="c"># RADIUS: tickets, reconnects, usage</span>
+sudo docker compose logs --tail 200 wifi-portal     <span class="c"># the platform and the sign-in page</span>
+sudo tail -f /var/log/wifi-portal/wifi.jsonl        <span class="c"># every sign-in and admin action</span></pre>
   <p class="small">Docker keeps 5 × 20 MB of output per container. <code>wifi.jsonl</code> rotates at 50 MB and keeps 5 old copies.</p>
 </section>
 
@@ -874,36 +972,41 @@ sudo tail -f /var/log/wifi-portal/wifi.jsonl        <span class="c"># every logi
   <h1>When something doesn't work</h1>
   <p class="lead">Start with the dashboard: <strong>Activity</strong> gives the reason for every refusal, and <strong>Overview → Health</strong> shows which connection is down. The table below covers the rest.</p>
 
-  <h2><span class="num">8.1</span>Seeing every login in detail</h2>
+  <h2><span class="num">8.1</span>Seeing every request in detail</h2>
 <pre>sudo nano /etc/wifi-portal/radius.env      <span class="c"># set RADIUS_DEBUG=1</span>
 sudo docker compose up -d freeradius
-sudo docker compose logs -f freeradius     <span class="c"># try a login, then Ctrl+C</span></pre>
-  <div class="stop">
-    <span class="callout-title">Debug output shows passwords</span>
-    In debug mode FreeRADIUS prints each login in full, including the password from inside the tunnel. Use it with test accounts, for as short a time as you can, then set <code>RADIUS_DEBUG=0</code> and run <code>sudo docker compose up -d freeradius</code> again.
+sudo docker compose logs -f freeradius     <span class="c"># try a sign-in, then Ctrl+C</span></pre>
+  <div class="note">
+    <span class="callout-title">What debug output shows</span>
+    Each RADIUS request in full: device addresses, the network name in <em>Called-Station-Id</em>, and the one-time tickets. Passwords never reach FreeRADIUS, so they never appear. It's noisy, so set <code>RADIUS_DEBUG=0</code> again when you're done and run <code>sudo docker compose up -d freeradius</code>.
   </div>
 
   <h2><span class="num">8.2</span>Symptoms</h2>
   <table>
     <thead><tr><th style="width:27%">You see</th><th style="width:30%">Likely cause</th><th>What to do</th></tr></thead>
     <tbody>
+      <tr><td>The phone joins, but no sign-in page opens</td><td>Bypass CNA is on, a suppression profile is attached, or the walled garden has a captive-check address</td><td>Check 4.5, 4.6 and 4.8. For now, open <code>http://neverssl.com</code> on the phone.</td></tr>
+      <tr><td>The browser can't load the sign-in page</td><td><code>wifi.phahs.org.za</code> isn't in the walled garden, or DNS doesn't work on that VLAN</td><td>Check the walled garden (4.5), and the VLAN's DHCP and DNS.</td></tr>
+      <tr><td>"This page has expired"</td><td>The page was left open for more than 30 minutes</td><td>Turn WiFi off and on, and the page opens again.</td></tr>
+      <tr><td>"That email or password is wrong", with the right password</td><td>Secure LDAP: the client is off, a permission is missing, or the access credentials are wrong</td><td>Check 3.1. Run <strong>Check connections</strong>: its LDAP line says what Google answered.</td></tr>
+      <tr><td>"The school WiFi can't check passwords right now"</td><td>The platform can't reach Secure LDAP</td><td><strong>Check connections</strong>. A TLS error usually means the server's clock is wrong (<code>timedatectl</code>) or the certificate files don't match.</td></tr>
+      <tr><td>"Your account uses the … network"</td><td>Working as intended: the rule's VLAN belongs to the other network</td><td>Join the other network. If the person is in the wrong org unit, fix it in Google, or change the rule.</td></tr>
+      <tr><td>"Your password is right, but the WiFi didn't respond"</td><td>The server can't reach the NBI</td><td><strong>Check connections</strong>. Check the NBI is enabled (4.4) and the NBI port forward (4.11).</td></tr>
+      <tr><td>"Your password is right, but the WiFi didn't let this device on"</td><td>The vSZ's RADIUS check of the ticket failed</td><td>Look in the FreeRADIUS log (8.1). Usually one of the next two rows. Activity may say <em>not signed in on the portal</em>.</td></tr>
       <tr><td>FreeRADIUS log: <em>Ignoring request … from unknown client 198.51.100.7</em></td><td>RADIUS arrives from a different address than <code>VSZ_ADDRESS</code></td><td>Set <code>VSZ_ADDRESS</code> to the address in the message, fix the <code>ufw</code> rule to match, then <code>sudo docker compose up -d freeradius</code>.</td></tr>
       <tr><td>Nothing in the FreeRADIUS log at all</td><td>A firewall in the way: the server's, the provider's, or the school's</td><td>On the server, <code>sudo tcpdump -ni any udp port 1812</code> while a phone tries. No packets means it's being blocked before the server.</td></tr>
-      <tr><td>The vSZ's "Test AAA" fails</td><td>Expected: it isn't an 802.1X login</td><td>Use <code>test-login.sh</code> (5.7) instead.</td></tr>
-      <tr><td><code>test-login.sh</code>: refused with a correct password; Activity says wrong password</td><td>Secure LDAP: the client is off, a permission is missing, or the user's org unit isn't included</td><td>Check 3.1. Run <strong>Check connections</strong>: its LDAP line says what Google answered.</td></tr>
-      <tr><td>Check connections: LDAP can bind but can't search, or Google asks for credentials</td><td>This LDAP client needs access credentials as well as the certificate</td><td>Admin console → the LDAP client → <strong>Access credentials → Generate new credentials</strong>. Add <code>LDAP_IDENTITY=</code> and <code>LDAP_PASSWORD=</code> lines with them to radius.env, then <code>sudo docker compose up -d freeradius</code>.</td></tr>
-      <tr><td>LDAP: a TLS or certificate error</td><td>The server's clock is wrong, or the LDAP certificate files don't match</td><td><code>timedatectl</code> should show <em>synchronized: yes</em>. Download the certificate again (3.1).</td></tr>
-      <tr><td>Every login refused; Activity empty; Health says FreeRADIUS hasn't called</td><td>The platform token differs between config.json and radius.env</td><td>Make <code>radius.apiToken</code> and <code>PLATFORM_TOKEN</code> the same, then <code>sudo docker compose up -d --force-recreate</code>.</td></tr>
-      <tr><td>Accepted, but everyone is on the same VLAN</td><td>Dynamic VLAN (AAA override) is off on Nexus</td><td>Turn it on (4.4). People and Activity show which VLAN the server chose.</td></tr>
-      <tr><td>Accepted, but the device gets no IP address</td><td>That VLAN doesn't reach the AP, or has no DHCP scope</td><td>Check the switch port is tagged for the VLAN, and the DHCP scope.</td></tr>
+      <tr><td>Every sign-in fails after the password; Health says FreeRADIUS hasn't called</td><td>The platform token differs between config.json and radius.env</td><td>Make <code>radius.apiToken</code> and <code>PLATFORM_TOKEN</code> the same, then <code>sudo docker compose up -d --force-recreate</code>.</td></tr>
+      <tr><td>A remembered phone sees the sign-in page every time</td><td>MAC authentication bypass is off; Called Station ID doesn't include the network name (Activity shows <code>portal_ssid_error</code>); or the phone's private address rotates</td><td>Check 4.6 on both WLANs, and 6.1.</td></tr>
+      <tr><td>Signed in, but on the wrong VLAN</td><td>The WLAN's Access VLAN doesn't match <code>portal.networks</code></td><td>Make them the same (4.6, 4.7, 5.2).</td></tr>
+      <tr><td>Signed in, but the device gets no IP address</td><td>That VLAN doesn't reach the AP, or has no DHCP scope</td><td>Check the switch port is tagged for the VLAN, and the DHCP scope.</td></tr>
+      <tr><td>The vSZ's "Test AAA" fails</td><td>Expected: it isn't a sign-in from the page</td><td>Test with a phone (5.8).</td></tr>
       <tr><td>Refused: rule, blocked, suspended or wrong domain</td><td>Working as intended</td><td>Activity gives the reason. Change the rule, the block or the Google account.</td></tr>
-      <tr><td>An iPhone or Mac won't connect</td><td>Joined by hand, without the profile</td><td>Forget the network, install the profile (6.1).</td></tr>
-      <tr><td>Windows asks "Continue connecting?"</td><td>Set up by hand</td><td>Don't continue. Install the profile (6.2).</td></tr>
-      <tr><td><code>wifi-portal</code> keeps restarting</td><td>A mistake in config.json</td><td><code>sudo docker compose logs wifi-portal</code> lists each problem under <em>Invalid config</em>.</td></tr>
-      <tr><td>Guest keys: "doesn't match the pinned fingerprint"</td><td>The vSZ certificate changed, or something is intercepting</td><td>Run 5.4 again and compare with the vSZ console before updating.</td></tr>
-      <tr><td>Guest keys: sign-in failed or HTTP 403</td><td>The API account's password or role</td><td>Check the password, then widen the role (4.6).</td></tr>
-      <tr><td>Guest keys: can't reach the vSZ</td><td>The school's port forward for TCP 8443</td><td>Check 4.7, including that it allows the server's IP.</td></tr>
-      <tr><td><code>directory_error</code> alerts</td><td>Google directory or quota trouble, or delegation scopes</td><td>Check the delegation entry (3.3). On busy days, check fast roaming is on (4.4).</td></tr>
+      <tr><td><code>wifi-portal</code> keeps restarting</td><td>A mistake in config.json, or it can't read the file</td><td><code>sudo docker compose logs wifi-portal</code> lists each problem under <em>Invalid config</em>. Check the permissions (5.1).</td></tr>
+      <tr><td>"doesn't match the pinned fingerprint"</td><td>The vSZ certificate changed, or something is intercepting</td><td>Run 5.4 again and compare with the vSZ console before updating.</td></tr>
+      <tr><td>Guest keys: sign-in failed or HTTP 403</td><td>The API account's password or role</td><td>Check the password, then widen the role (4.10).</td></tr>
+      <tr><td>NBI: <em>Wrong request password</em> (code 306)</td><td>The NBI user name or password differs from the vSZ</td><td>Set them again on both sides (4.4, 5.2).</td></tr>
+      <tr><td>Can't reach the vSZ API or NBI</td><td>The school's port forwards</td><td>Check 4.11, including that they allow the server's IP.</td></tr>
+      <tr><td><code>directory_error</code> alerts</td><td>Google directory or quota trouble, or delegation scopes</td><td>Check the delegation entry (3.3).</td></tr>
     </tbody>
   </table>
 </section>
@@ -918,14 +1021,15 @@ sudo docker compose logs -f freeradius     <span class="c"># try a login, then C
     <thead><tr><th style="width:22%">On</th><th style="width:22%">Port</th><th style="width:24%">Open to</th><th>For</th></tr></thead>
     <tbody>
       <tr><td>Server, in</td><td>TCP 22</td><td>Your IPs</td><td>SSH</td></tr>
-      <tr><td>Server, in</td><td>TCP 80, 443</td><td>Anywhere</td><td>Dashboard, Let's Encrypt</td></tr>
-      <tr><td>Server, in</td><td>UDP 1812, 1813</td><td>The RADIUS source IP only</td><td>Logins and accounting from the vSZ</td></tr>
+      <tr><td>Server, in</td><td>TCP 80, 443</td><td>Anywhere</td><td>The sign-in page, the dashboard, Let's Encrypt</td></tr>
+      <tr><td>Server, in</td><td>UDP 1812, 1813</td><td>The RADIUS source IP only</td><td>Sign-ins, reconnects and usage from the vSZ</td></tr>
       <tr><td>Server, out</td><td>TCP 636</td><td>ldap.google.com</td><td>Password checks</td></tr>
       <tr><td>Server, out</td><td>TCP 443</td><td>Google APIs, Let's Encrypt, Docker Hub, GitHub</td><td>Directory, alerts, backups, certificates, updates</td></tr>
-      <tr><td>Server, out</td><td>TCP 8443</td><td>The vSZ</td><td>Guest keys</td></tr>
-      <tr><td>Server, local only</td><td>TCP 8080; UDP 18120, 18121</td><td>127.0.0.1 only: never open</td><td>Platform API; FreeRADIUS inner tunnel and health check</td></tr>
+      <tr><td>Server, out</td><td>TCP 9443, 9444 (examples)</td><td>The school's public IP</td><td>The vSZ API (guest keys) and the NBI (sign-ins)</td></tr>
+      <tr><td>Server, local only</td><td>TCP 8080; UDP 18120, 18121</td><td>127.0.0.1 only: never open</td><td>Platform API; FreeRADIUS internals and health check</td></tr>
       <tr><td>School, out</td><td>UDP 1812, 1813</td><td>The server</td><td>RADIUS from the vSZ</td></tr>
-      <tr><td>School, in (port forward)</td><td>TCP 8443</td><td>The server's IP only</td><td>The vSZ API</td></tr>
+      <tr><td>School, in (port forward)</td><td>9443 → vSZ 8443, 9444 → vSZ 9443</td><td>The server's IP only</td><td>The vSZ API and the NBI</td></tr>
+      <tr><td>Sign-in networks, walled garden</td><td>TCP 443</td><td><code>wifi.phahs.org.za</code> only</td><td>The sign-in page before a device is let on</td></tr>
     </tbody>
   </table>
 
@@ -938,10 +1042,10 @@ sudo docker compose logs -f freeradius     <span class="c"># try a login, then C
       <tr><td><code>/etc/wifi-portal/radius.env</code></td><td>FreeRADIUS settings and secrets (root, 600)</td></tr>
       <tr><td><code>/etc/wifi-portal/service-account.json</code></td><td>Google service account key (root:1000, 640)</td></tr>
       <tr><td><code>/etc/wifi-portal/google-ldap/ldap-client.crt</code>, <code>.key</code></td><td>Google Secure LDAP client certificate (root:1000, 640)</td></tr>
-      <tr><td><code>/var/lib/wifi-portal/wifi-portal.db</code></td><td>The database</td></tr>
+      <tr><td><code>/var/lib/wifi-portal/wifi-portal.db</code></td><td>The database, including remembered devices</td></tr>
       <tr><td><code>/var/lib/wifi-portal/backups/</code></td><td>Nightly copies, the last 14</td></tr>
-      <tr><td><code>/var/log/wifi-portal/wifi.jsonl</code></td><td>Logins and admin actions, one JSON line each</td></tr>
-      <tr><td>Docker volume <code>caddy-data</code></td><td>Let's Encrypt certificates. FreeRADIUS reads the RADIUS name's certificate from here.</td></tr>
+      <tr><td><code>/var/log/wifi-portal/wifi.jsonl</code></td><td>Sign-ins and admin actions, one JSON line each</td></tr>
+      <tr><td>Docker volume <code>caddy-data</code></td><td>Let's Encrypt certificates</td></tr>
     </tbody>
   </table>
 
@@ -949,12 +1053,11 @@ sudo docker compose logs -f freeradius     <span class="c"># try a login, then C
   <table>
     <thead><tr><th style="width:22%">Name</th><th>Does</th></tr></thead>
     <tbody>
-      <tr><td><code>caddy</code></td><td>HTTPS for the dashboard, and the certificate for <code>radius.phahs.org.za</code></td></tr>
-      <tr><td><code>wifi-portal</code></td><td>The platform: the VLAN decision, the dashboard, guest keys, usage, alerts, backups</td></tr>
-      <tr><td><code>freeradius</code></td><td>802.1X logins for Nexus, checked against Google Secure LDAP</td></tr>
+      <tr><td><code>caddy</code></td><td>HTTPS for the sign-in page and the dashboard</td></tr>
+      <tr><td><code>wifi-portal</code></td><td>The platform: the sign-in page, password checks, the hand-over to the vSZ, remembered devices, the dashboard, guest keys, usage, alerts, backups</td></tr>
+      <tr><td><code>freeradius</code></td><td>Answers the vSZ's RADIUS: checks one-time tickets and remembered devices with the platform, and passes on usage</td></tr>
     </tbody>
   </table>
-  <p class="small">The repo's README has the same setup in shorter form, plus how the rules, usage figures and tests work.</p>
 </section>
 
 </body>

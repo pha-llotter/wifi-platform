@@ -19,7 +19,7 @@ People join an open school network, a sign-in page opens by itself, and they typ
 - **Data used per person.** The vSZ reports each session's bytes through RADIUS accounting, so the dashboard shows who's online and how much each person and device used. It shows the amount only, not which sites.
 - **The admin dashboard** (`https://wifi.phahs.org.za/admin`) shows who signed in from which device and network, who was turned away and why, data used, the rules, blocks, guest keys, health, backups and alerts.
 
-The PDF setup guide in [docs/](docs/) still describes the earlier 802.1X design for the school networks. Its parts 1–3 (server, firewall, Google) still apply; for the vSZ, follow this README.
+The PDF setup guide, [docs/Nexus-setup-guide.pdf](docs/Nexus-setup-guide.pdf), walks through the whole setup step by step: server, Google, the vSZ (SmartZone 6.1 menus) and a FortiGate, then testing, the pilot and troubleshooting.
 
 ## The parts
 
