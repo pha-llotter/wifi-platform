@@ -21,7 +21,7 @@ export const NBI = {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export function createNbiClient({ host, port = 9443, protocol = 'https', password, tlsFingerprint = null, tlsVerify = false, timeoutMs = 10_000 }) {
+export function createNbiClient({ host, port = 9443, protocol = 'https', username = null, password, tlsFingerprint = null, tlsVerify = false, timeoutMs = 10_000 }) {
   const transport = protocol === 'https' ? https : http;
   const agent =
     protocol === 'https' && tlsFingerprint ? pinnedAgent(tlsFingerprint) : new transport.Agent({ keepAlive: true, rejectUnauthorized: tlsVerify });
@@ -71,8 +71,10 @@ export function createNbiClient({ host, port = 9443, protocol = 'https', passwor
     }
   }
 
+  // SmartZone 6.x asks for a user name as well as the password (older versions only a password).
   const request = (type, ue, extra = {}) => ({
     Vendor: 'ruckus',
+    ...(username && { RequestUserName: username }),
     RequestPassword: password,
     APIVersion: '1.0',
     RequestCategory: 'UserOnlineControl',

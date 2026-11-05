@@ -306,3 +306,34 @@ describe('networks and SSIDs', () => {
     assert.equal(checkNetwork(nets, { vlanId: 10 }, 'Other').ok, false);
   });
 });
+
+describe('the vSZ portal interface (NBI) client', () => {
+  test('sends the user name and password, and waits while the login is pending', async () => {
+    const { createNbiClient } = await import('../src/nbi.js');
+    const seen = [];
+    const server = http.createServer((req, res) => {
+      let body = '';
+      req.on('data', (c) => (body += c));
+      req.on('end', () => {
+        const r = JSON.parse(body);
+        seen.push(r);
+        const code = r.RequestType === 'Login' ? 202 : 101;
+        res.end(JSON.stringify({ ResponseCode: code, ReplyMessage: code === 101 ? 'Authorized' : 'Pending' }));
+      });
+    });
+    await new Promise((r) => server.listen(0, '127.0.0.1', r));
+    try {
+      const nbi = createNbiClient({ host: '127.0.0.1', port: server.address().port, protocol: 'http', username: 'wifiplatform', password: 'p-1' });
+      const r = await nbi.loginAndWait({ ip: 'ENC1', mac: 'ENC2' }, 'pupil@school.org', 'ticket', { intervalMs: 10 });
+      assert.equal(r.ok, true);
+      assert.equal(seen[0].RequestType, 'Login');
+      assert.equal(seen[0].RequestUserName, 'wifiplatform');
+      assert.equal(seen[0].RequestPassword, 'p-1');
+      assert.equal(seen[0]['UE-MAC'], 'ENC2', 'the redirect values are passed back as they came');
+      assert.equal(seen[0]['UE-Password'], 'ticket');
+      assert.equal(seen[1].RequestType, 'Status');
+    } finally {
+      server.close();
+    }
+  });
+});

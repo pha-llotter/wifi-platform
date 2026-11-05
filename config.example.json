@@ -36,7 +36,8 @@
     "nbi": {
       "host": "203.0.113.10",
       "port": 9443,
-      "password": "the WISPr Northbound Interface password set on the vSZ",
+      "username": "the WISPr Northbound Interface user name (SmartZone 6.x asks for one)",
+      "password": "the WISPr Northbound Interface password: 8+ characters with a number, a letter and a special character",
       "tlsFingerprint": "usually the same as dpsk.tlsFingerprint"
     }
   },
