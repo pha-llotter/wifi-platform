@@ -211,6 +211,14 @@ describe('the sign-in page', () => {
     assert.match(res.headers.get('content-security-policy'), /script-src 'self'/);
     for (const p of ['/portal/portal.css', '/portal/portal.js', '/portal/crest.png']) assert.equal((await fetch(h.base + p)).status, 200, p);
   });
+
+  test('the page links its style and script by version, so a changed file is fetched at once', async () => {
+    const html = await (await fetch(`${h.base}/`)).text();
+    const css = /href="(\/portal\/portal\.css\?v=[0-9a-f]{10})"/.exec(html)?.[1];
+    const js = /src="(\/portal\/portal\.js\?v=[0-9a-f]{10})"/.exec(html)?.[1];
+    assert.ok(css && js, 'versioned links');
+    for (const p of [css, js]) assert.equal((await fetch(h.base + p)).status, 200, p);
+  });
 });
 
 describe('RADIUS for the sign-in networks', () => {

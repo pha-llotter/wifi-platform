@@ -58,6 +58,11 @@ function limiter(max, windowMs) {
 
 export function createPortal({ config, settings, access, verifyPassword, nbi, tickets, log }) {
   const files = Object.fromEntries(Object.values(STATIC).map(([f]) => [f, fs.readFileSync(new URL(f, ASSETS))]));
+  // Pages link to the style and script with a version from their contents, so browsers that
+  // kept an old copy (they're cached for an hour) fetch the new one as soon as it changes.
+  const ver = (f) => crypto.createHash('sha256').update(files[f]).digest('hex').slice(0, 10);
+  const cssUrl = `/portal/portal.css?v=${ver('portal.css')}`;
+  const jsUrl = `/portal/portal.js?v=${ver('portal.js')}`;
   const visits = new TtlMap({ max: 20_000 });
   const wrongByEmail = limiter(5, WINDOW); // wrong passwords per account
   const triesByDevice = limiter(10, WINDOW); // any attempts per device
@@ -80,13 +85,13 @@ export function createPortal({ config, settings, access, verifyPassword, nbi, ti
   function page(title, body) {
     const b = brand();
     return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${e(title)} · ${e(b.name)}</title><link rel="icon" href="/portal/crest.png"><link rel="stylesheet" href="/portal/portal.css"></head>
+<title>${e(title)} · ${e(b.name)}</title><link rel="icon" href="/portal/crest.png"><link rel="stylesheet" href="${cssUrl}"></head>
 <body><main class="card">
 <header class="brand"><img src="/portal/crest.png" alt="" width="64" height="64"><div class="brand-text"><div class="school">${e(b.school || b.name)}</div>${b.motto ? `<div class="motto">${e(b.motto)}</div>` : ''}</div>${b.school ? `<div class="brand-name">${e(b.name)}</div>` : ''}</header>
 <section class="content">
 ${body}
 </section>
-</main><script src="/portal/portal.js"></script></body></html>`;
+</main><script src="${jsUrl}"></script></body></html>`;
   }
 
   function signInPage(res, { visit, error = null, email = '', status = 200 }) {
