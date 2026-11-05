@@ -24,6 +24,8 @@ const TWO_PART = new Set(
   'co.za org.za ac.za gov.za net.za edu.za web.za nom.za school.za co.uk org.uk ac.uk gov.uk me.uk com.au net.au org.au edu.au gov.au co.nz org.nz com.br co.in co.jp com.cn com.ng co.ke com.na co.bw co.zw com.sg com.my co.id com.mx com.ar com.tr'.split(' '),
 );
 
+const INTERNAL_TLD = new Set(['arpa', 'local', 'lan', 'internal', 'home', 'localdomain', 'corp', 'intranet']);
+
 // Companies whose services share one name: keep the service, so Classroom isn't shown as Google search.
 const KEEP_SERVICE = new Set(['google.com', 'microsoft.com', 'live.com', 'apple.com', 'sharepoint.com']);
 
@@ -32,6 +34,8 @@ export function siteOf(host) {
   let h = String(host ?? '').trim().toLowerCase().replace(/\.$/, '');
   if (!h || /^[\d.]+$/.test(h) || h.includes(':') || !/^[a-z0-9.-]+$/.test(h) || !h.includes('.')) return null;
   const parts = h.split('.');
+  // Reverse lookups and internal names (an Active Directory server answers lots of these) aren't sites.
+  if (INTERNAL_TLD.has(parts[parts.length - 1])) return null;
   let take = parts.length >= 3 && TWO_PART.has(parts.slice(-2).join('.')) ? 3 : 2;
   if (KEEP_SERVICE.has(parts.slice(-2).join('.')) && parts.length >= 3 && parts[parts.length - 3] !== 'www') take = 3;
   return parts.slice(-take).join('.');

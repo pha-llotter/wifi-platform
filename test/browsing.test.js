@@ -30,6 +30,9 @@ describe('reading FortiGate log lines', () => {
     assert.equal(siteOf('www.google.com'), 'google.com');
     assert.equal(siteOf('142.250.74.110'), null);
     assert.equal(siteOf('localhost'), null);
+    assert.equal(siteOf('5.0.10.10.in-addr.arpa'), null, 'reverse lookups');
+    assert.equal(siteOf('dc01.phahs.local'), null, 'internal AD names');
+    assert.equal(siteOf('_ldap._tcp.dc._msdcs.phahs.org.za'), null, 'AD service lookups');
   });
 
   test('a web filter line gives the device address, site, category and time', () => {
