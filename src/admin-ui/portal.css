@@ -23,6 +23,8 @@
   --bad: #d0343c;
   --bad-soft: #fde8ea;
   --ring: 0 0 0 3px rgba(34, 135, 222, 0.35);
+  --hint-bg: #f2f5fc;
+  --hint-line: #e1e7f3;
   --pad: 20px;
 }
 @media (prefers-color-scheme: dark) {
@@ -37,6 +39,8 @@
     --ok: #3ccf83;
     --bad: #ff6b72;
     --bad-soft: #3a1820;
+    --hint-bg: #1a2140;
+    --hint-line: #263055;
   }
 }
 
@@ -232,3 +236,41 @@ button[disabled] { opacity: 0.7; cursor: progress; }
   .card { max-width: 1000px; min-height: 580px; }
   .content { padding: 64px 72px; }
 }
+
+/* ---------- The hint under the sign-in form ---------- */
+.hint {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 22px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--hint-bg);
+  border: 1px solid var(--hint-line);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.hint strong { display: block; color: var(--text); font-weight: 650; margin-bottom: 2px; }
+.hint span { color: var(--muted); }
+.hint-icon {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  padding: 7px;
+  border-radius: 10px;
+  background: var(--accent);
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.secure {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.secure svg { flex: none; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }

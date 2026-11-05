@@ -108,7 +108,12 @@ ${error ? `<p class="error" role="alert">${e(error)}</p>` : ''}
   <input id="password" name="password" type="password" autocomplete="current-password" required>
   <button type="submit">Connect</button>
 </form>
-<p class="small">The same email and password as Google Classroom and Gmail.</p>`));
+<div class="hint">
+  <svg class="hint-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l3 3M14 9l2 2"/></svg>
+  <div><strong>Your Google Classroom login</strong>
+  <span>Use the same email and password as Gmail and Classroom. Forgot your password? Ask the IT office.</span></div>
+</div>
+<p class="secure"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Your password is checked by Google and never stored.</p>`));
   }
 
   function messagePage(res, status, title, text) {
