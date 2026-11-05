@@ -1,13 +1,18 @@
-/* The WiFi sign-in page. It opens in phones' small "Log in to network" window, so it is
-   one narrow card that works from 320px up, with no outside resources. */
+/* The WiFi sign-in page. It opens in phones' small "Log in to network" window as well as
+   in desktop browsers, with no outside resources. Three layouts:
+   - phones (under 560px): the page is the card, edge to edge, with large touch targets
+   - tablets and small windows: one floating card, centred
+   - wide screens (860px and up, 560px tall): a two-panel card, the school on the left */
 @font-face { font-family: "Inter"; src: url("/portal/inter.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
 
 :root {
   --brand: #02298e;
   --brand-deep: #12055b;
+  --gold: #be9f1e;
   --gold-light: #f4eb63;
   --hero: linear-gradient(120deg, var(--brand-deep) 0%, var(--brand) 55%, #0b3fb0 100%);
-  --bg: #f3f6fb;
+  --hero-tall: linear-gradient(160deg, var(--brand-deep) 0%, var(--brand) 60%, #0b3fb0 100%);
+  --bg: #eef2f9;
   --surface: #ffffff;
   --text: #141a33;
   --muted: #5b6380;
@@ -18,10 +23,11 @@
   --bad: #d0343c;
   --bad-soft: #fde8ea;
   --ring: 0 0 0 3px rgba(34, 135, 222, 0.35);
+  --pad: 20px;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0b1024;
+    --bg: #070b1a;
     --surface: #141a33;
     --text: #e6eaf7;
     --muted: #a3abc6;
@@ -39,72 +45,80 @@ html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--bg);
+  min-height: 100dvh;
+  background: var(--surface);
   color: var(--text);
   font: 16px/1.5 "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 24px 16px;
 }
+
+/* ---------- Phones: the page is the card ---------- */
 .card {
-  width: 100%;
-  max-width: 420px;
+  min-height: 100vh;
+  min-height: 100dvh;
   background: var(--surface);
-  border-radius: 18px;
-  overflow: hidden;
-  box-shadow: 0 10px 30px rgba(18, 5, 91, 0.14);
-  padding-bottom: 24px;
+  display: flex;
+  flex-direction: column;
 }
-header {
+.brand {
   display: flex;
   gap: 14px;
   align-items: center;
-  padding: 18px 22px;
+  padding: max(18px, env(safe-area-inset-top)) max(var(--pad), env(safe-area-inset-right)) 18px max(var(--pad), env(safe-area-inset-left));
   background: var(--hero);
   color: #fff;
 }
-header img { width: 56px; height: 56px; flex: none; }
-.school { font-weight: 750; font-size: 1.1rem; line-height: 1.25; }
-.motto { color: var(--gold-light); font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 650; margin-top: 2px; }
+.brand img { width: 52px; height: 52px; flex: none; }
+.school { font-weight: 750; font-size: 1.05rem; line-height: 1.25; }
+.motto { color: var(--gold-light); font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 650; margin-top: 3px; }
+.brand-name { display: none; }
 
-h1 { margin: 22px 22px 4px; font-size: 1.5rem; line-height: 1.2; letter-spacing: -0.01em; }
-h1 span { color: var(--accent); }
-.lead { margin: 0 22px 14px; color: var(--muted); }
-.small { margin: 16px 22px 0; color: var(--muted); font-size: 0.875rem; }
+.content {
+  flex: 1;
+  width: 100%;
+  padding: 26px max(var(--pad), env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(var(--pad), env(safe-area-inset-left));
+}
+
+h1 { margin: 0 0 6px; font-size: 1.6rem; line-height: 1.2; letter-spacing: -0.015em; overflow-wrap: anywhere; }
+h1 span { color: var(--accent); white-space: nowrap; }
+.lead { margin: 0 0 18px; color: var(--muted); }
+.small { margin: 18px 0 0; color: var(--muted); font-size: 0.875rem; }
 .error {
-  margin: 0 22px 14px;
-  padding: 10px 12px;
-  border-radius: 8px;
+  margin: 0 0 16px;
+  padding: 11px 13px;
+  border-radius: 10px;
   background: var(--bad-soft);
   color: var(--bad);
   font-weight: 600;
+  border-left: 4px solid var(--bad);
 }
 
-form { display: flex; flex-direction: column; padding: 0 22px; }
-label { font-weight: 600; font-size: 0.9rem; margin: 10px 0 6px; }
+form { display: flex; flex-direction: column; }
+label { font-weight: 600; font-size: 0.9rem; margin: 12px 0 6px; }
 input {
   font: inherit;
   font-size: 1rem; /* 16px stops iPhones zooming in */
+  min-height: 50px;
   padding: 12px 14px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--surface);
   color: var(--text);
   width: 100%;
 }
 input:focus { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
 button {
-  margin-top: 20px;
+  margin-top: 22px;
   font: inherit;
   font-weight: 700;
   font-size: 1.05rem;
+  min-height: 52px;
   padding: 14px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--accent);
   color: #fff;
   cursor: pointer;
+  touch-action: manipulation;
 }
 button:hover { background: var(--accent-hover); }
 button:focus-visible { outline: none; box-shadow: var(--ring); }
@@ -113,7 +127,7 @@ button[disabled] { opacity: 0.7; cursor: progress; }
 .done {
   width: 64px;
   height: 64px;
-  margin: 26px 22px 0;
+  margin: 4px 0 18px;
   border-radius: 50%;
   background: var(--ok);
   color: #fff;
@@ -122,4 +136,99 @@ button[disabled] { opacity: 0.7; cursor: progress; }
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Very narrow screens (old phones, split views) */
+@media (max-width: 359px) {
+  :root { --pad: 16px; }
+  .brand img { width: 44px; height: 44px; }
+  .motto { display: none; }
+  h1 { font-size: 1.4rem; }
+}
+
+/* ---------- Tablets, small windows and large phones sideways: a floating card ---------- */
+@media (min-width: 560px) {
+  body {
+    background: var(--bg);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px 24px;
+  }
+  .card {
+    min-height: 0;
+    width: 100%;
+    max-width: 460px;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(18, 5, 91, 0.06), 0 18px 48px rgba(18, 5, 91, 0.16);
+  }
+  .brand { padding: 20px 28px; }
+  .brand img { width: 56px; height: 56px; }
+  .content { padding: 30px 28px 30px; }
+}
+/* Short windows (phones sideways): start at the top instead of centring */
+@media (min-width: 560px) and (max-height: 560px) {
+  body { align-items: flex-start; padding: 16px 24px; }
+}
+
+/* ---------- Wide screens: two panels ---------- */
+@media (min-width: 860px) and (min-height: 560px) {
+  body {
+    background:
+      radial-gradient(1200px 600px at 0% 0%, rgba(2, 41, 142, 0.10), transparent 60%),
+      radial-gradient(900px 500px at 100% 100%, rgba(190, 159, 30, 0.10), transparent 60%),
+      var(--bg);
+    padding: 48px;
+  }
+  .card {
+    max-width: 920px;
+    min-height: 520px;
+    flex-direction: row;
+    border-radius: 24px;
+  }
+  .brand {
+    flex: 0 0 42%;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 22px;
+    padding: 48px 44px;
+    background: var(--hero-tall);
+    position: relative;
+  }
+  .brand::after {
+    content: "";
+    position: absolute;
+    left: 44px;
+    bottom: 40px;
+    width: 56px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--gold);
+  }
+  .brand img { width: 96px; height: 96px; }
+  .school { font-size: 1.6rem; line-height: 1.2; letter-spacing: -0.01em; }
+  .motto { font-size: 0.75rem; margin-top: 8px; }
+  .brand-name {
+    display: block;
+    margin-top: 8px;
+    color: #dfe6fb;
+    font-size: 1rem;
+    font-weight: 500;
+  }
+  .content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 56px 60px;
+  }
+  .content > * { width: 100%; max-width: 400px; }
+  h1 { font-size: 2rem; margin-bottom: 8px; }
+  .lead { font-size: 1.05rem; margin-bottom: 22px; }
+}
+@media (min-width: 1280px) and (min-height: 700px) {
+  .card { max-width: 1000px; min-height: 580px; }
+  .content { padding: 64px 72px; }
 }

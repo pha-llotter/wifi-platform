@@ -82,8 +82,10 @@ export function createPortal({ config, settings, access, verifyPassword, nbi, ti
     return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${e(title)} · ${e(b.name)}</title><link rel="icon" href="/portal/crest.png"><link rel="stylesheet" href="/portal/portal.css"></head>
 <body><main class="card">
-<header><img src="/portal/crest.png" alt="" width="64" height="64"><div><div class="school">${e(b.school || b.name)}</div>${b.motto ? `<div class="motto">${e(b.motto)}</div>` : ''}</div></header>
+<header class="brand"><img src="/portal/crest.png" alt="" width="64" height="64"><div class="brand-text"><div class="school">${e(b.school || b.name)}</div>${b.motto ? `<div class="motto">${e(b.motto)}</div>` : ''}</div>${b.school ? `<div class="brand-name">${e(b.name)}</div>` : ''}</header>
+<section class="content">
 ${body}
+</section>
 </main><script src="/portal/portal.js"></script></body></html>`;
   }
 
