@@ -432,7 +432,7 @@ async function people() {
       <div id="blocked"></div>
       <form class="panel-body field-row" id="block-form">
         <div class="field"><label for="b-email">Block someone</label><input type="text" id="b-email" placeholder="name@phahs.org.za" autocomplete="off" required></div>
-        <div class="field"><label for="b-reason">Reason</label><input type="text" id="b-reason" placeholder="Optional, shown here only" maxlength="200"></div>
+        <div class="field"><label for="b-reason">Reason</label><input type="text" id="b-reason" placeholder="Optional. They see it when they try to sign in." maxlength="200"></div>
         <div class="field"><span class="label">&nbsp;</span><button class="btn btn-danger" type="submit">Block</button></div>
       </form>
     </section>
@@ -512,7 +512,7 @@ async function person(email) {
     </div>
   </div>
   <form class="panel panel-body field-row mb" id="block-form" hidden>
-    <div class="field"><label for="reason">Why are you blocking ${h(p.email)}?</label><input type="text" id="reason" maxlength="200" placeholder="Optional, shown to admins only"></div>
+    <div class="field"><label for="reason">Why are you blocking ${h(p.email)}?</label><input type="text" id="reason" maxlength="200" placeholder="Optional. They see it when they try to sign in."></div>
     <div class="field"><span class="label">&nbsp;</span><div class="actions"><button class="btn btn-danger" type="submit">Block</button><button class="btn" type="button" id="cancel">Cancel</button></div></div>
   </form>
   ${

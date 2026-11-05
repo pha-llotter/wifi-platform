@@ -299,6 +299,8 @@ export function openDb(file) {
   }
 
   const isBlocked = (email) => Boolean(q('SELECT 1 FROM blocked WHERE email = ?').get(String(email).toLowerCase()));
+  /** The block on this person, or null: { reason, at } */
+  const blockOf = (email) => q('SELECT reason, at FROM blocked WHERE email = ?').get(String(email).toLowerCase()) ?? null;
   const block = (email, reason, by, now = Date.now()) =>
     q(`INSERT INTO blocked (email, reason, blocked_by, at) VALUES (?, ?, ?, ?)
       ON CONFLICT(email) DO UPDATE SET reason = excluded.reason, blocked_by = excluded.blocked_by, at = excluded.at`).run(
@@ -395,6 +397,7 @@ export function openDb(file) {
     people,
     person,
     isBlocked,
+    blockOf,
     block,
     unblock,
     blockedList,

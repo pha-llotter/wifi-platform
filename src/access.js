@@ -51,11 +51,14 @@ export function createAccess({ settings, directory = null, cacheMs = 5 * 60_000 
   // decision for a few minutes spares the Google directory those repeat lookups.
   const cache = new TtlMap({ max: 20_000 });
 
+  // A blocked person is told so on the sign-in page, with the reason the admin gave.
+  const blocked = (e) => ({ allow: false, blocked: true, blockReason: settings.blockOf?.(e)?.reason ?? null, reason: 'blocked by an admin' });
+
   async function resolve(email) {
     let e = email.toLowerCase();
     // Real addresses are short; a long one only costs time in the rules' regexes.
     if (e.length > 128) return { allow: false, reason: 'username too long' };
-    if (settings.isBlocked(e)) return { allow: false, reason: 'blocked by an admin' };
+    if (settings.isBlocked(e)) return blocked(e);
     const domain = e.split('@')[1];
     if (!settings.current().allowedDomains.includes(domain)) return { allow: false, reason: `${domain || 'that username'} isn't an allowed domain` };
     let orgUnitPath;
@@ -69,7 +72,7 @@ export function createAccess({ settings, directory = null, cacheMs = 5 * 60_000 
       const primary = String(user.email ?? '').toLowerCase();
       if (primary && primary !== e) {
         e = primary;
-        if (settings.isBlocked(e)) return { allow: false, reason: 'blocked by an admin' };
+        if (settings.isBlocked(e)) return blocked(e);
       }
     }
     const decision = evaluate(settings.current().compiledPolicy, { email: e, orgUnitPath });

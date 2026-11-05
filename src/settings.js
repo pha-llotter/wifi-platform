@@ -87,5 +87,6 @@ export function createSettings({ config, db = null }) {
     current,
     update,
     isBlocked: (email) => (db ? db.isBlocked(email) : false),
+    blockOf: (email) => (db?.blockOf ? db.blockOf(email) : null),
   };
 }

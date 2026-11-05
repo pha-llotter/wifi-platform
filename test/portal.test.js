@@ -161,6 +161,23 @@ describe('the sign-in page', () => {
     assert.ok(h.events.some((x) => x.event === 'denied' && /wrong password/.test(x.reason)));
   });
 
+  test('a blocked person is told so, with the reason the admin gave, after the password checks out', async () => {
+    h.db.block('t.smith@school.org', 'Sharing the password <with others>', 'it@school.org');
+    h.access.forget();
+    const r = await signIn('Nexus Staff', 't.smith@school.org', 'staff-pass');
+    assert.match(r.html, /This account is blocked from the school WiFi\. Reason: Sharing the password &lt;with others&gt;/);
+    assert.equal(h.nbiCalls.length, 0);
+    const wrong = await signIn('Nexus Staff', 't.smith@school.org', 'nope');
+    assert.doesNotMatch(wrong.html, /blocked/, 'nothing is said about a block without the right password');
+  });
+
+  test('a block without a reason still says the account is blocked', async () => {
+    h.db.block('t.smith@school.org', '', 'it@school.org');
+    h.access.forget();
+    const r = await signIn('Nexus Staff', 't.smith@school.org', 'staff-pass');
+    assert.match(r.html, /This account is blocked from the school WiFi\.<\/p>/);
+  });
+
   test('a student on the staff network is pointed to the right one, after the password checks out', async () => {
     const r = await signIn('Nexus Staff', 'pupil@school.org', 'pupil-pass');
     assert.match(r.html, /Your account uses the “Nexus” network/);

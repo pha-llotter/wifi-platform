@@ -186,6 +186,9 @@ ${remember ? `<p class="small">This device reconnects by itself ${e(remember)}. 
     }
     if (!decision.allow) {
       log('denied', { email, reason: decision.reason, orgUnit: decision.orgUnitPath });
+      if (decision.blocked) {
+        return again(`This account is blocked from the school WiFi.${decision.blockReason ? ` Reason: ${decision.blockReason}` : ''}`);
+      }
       return again(decision.rule?.message ?? "This account can't use the school WiFi.");
     }
     if (visit.ssid) {
