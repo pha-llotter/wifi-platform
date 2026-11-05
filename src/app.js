@@ -1,10 +1,9 @@
-// The platform's HTTP entry point. There is no public website: people join the school
-// WiFi with their Google login and FreeRADIUS checks it. This serves
-//   /admin/*   the admin dashboard
-//   /radius/*  the API FreeRADIUS calls during logins (local only, see radius-api.js)
-//   /healthz   for uptime checks
-// and sends everything else to the dashboard.
-export function createApp({ admin, radiusApi, log }) {
+// The platform's HTTP entry point:
+//   /, /connect, /portal/*  the WiFi sign-in page the vSZ sends new devices to (portal.js)
+//   /admin/*                the admin dashboard
+//   /radius/*               the API FreeRADIUS calls during logins (local only, see radius-api.js)
+//   /healthz                for uptime checks
+export function createApp({ admin, radiusApi, portal = null, log }) {
   async function handle(req, res) {
     const url = new URL(req.url, 'http://portal');
     try {
@@ -14,12 +13,13 @@ export function createApp({ admin, radiusApi, log }) {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         return res.end('ok');
       }
-      res.writeHead(302, { Location: '/admin', 'Cache-Control': 'no-store' });
+      if (portal && (await portal.handle(req, res, url)) !== null) return;
+      res.writeHead(302, { Location: portal ? '/' : '/admin', 'Cache-Control': 'no-store' });
       res.end();
     } catch (err) {
       log('http_error', { path: url.pathname, error: err.message });
       if (!res.headersSent) {
-        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.writeHead(err.status ?? 500, { 'Content-Type': 'text/plain' });
         res.end('Something went wrong.');
       }
     }

@@ -4,10 +4,15 @@
 //   POST /radius/accounting              → data used per session (start, updates, stop) for the Usage page
 // FreeRADIUS checks the password itself, against Google Secure LDAP. Only FreeRADIUS
 // may call this: it must come from an allowed address and carry the shared token.
+//   POST /radius/portal                  → a Hotspot (WISPr) login: a sign-in from the portal
+//                                          page, or a remembered device reconnecting
 import crypto from 'node:crypto';
-import { normalizeUsername } from './access.js';
+import { checkNetwork, normalizeUsername, ssidFromCalledStation } from './access.js';
 import { ipAllowed } from './admin.js';
+import { normalizeMac } from './db.js';
 import { TtlMap } from './store.js';
+
+const isMac = (s) => /^([0-9a-f]{2}[-:.]?){5}[0-9a-f]{2}$/i.test(String(s ?? '').trim());
 
 // rlm_rest sends request attributes as {"User-Name": {"type": "string", "value": ["…"]}}.
 const attr = (body, name) => {
@@ -22,7 +27,7 @@ const int = (v) => {
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
 };
 
-export function createRadiusApi({ config, db, access, settings, log }) {
+export function createRadiusApi({ config, db, access, settings, tickets = null, log }) {
   const cfg = config.radius;
   const expected = Buffer.from(`radius:${cfg.apiToken}`).toString('base64');
   const refused = new TtlMap(); // logins this API refused, so the reject callback doesn't log them twice
@@ -95,6 +100,73 @@ export function createRadiusApi({ config, db, access, settings, log }) {
     return reply(res, 200, out);
   }
 
+  // A Hotspot (WISPr) Access-Request from the vSZ, in one of two forms:
+  //  - a sign-in from the portal page: User-Name is the email, User-Password the
+  //    one-time ticket the portal issued after the school password checked out
+  //  - a device reconnecting (MAC authentication on the WLAN): User-Name is its MAC
+  // Either way the person's rule and the network's VLAN are checked again here.
+  const refuse = (res, message) => reply(res, 401, { 'reply:Reply-Message': String(message).replace(/%/g, ' percent') });
+  const noSsidWarned = new TtlMap();
+
+  async function portal(res, body) {
+    const user = String(attr(body, 'User-Name') ?? '').trim();
+    const pass = String(attr(body, 'User-Password') ?? '');
+    const mac = attr(body, 'Calling-Station-Id') || null;
+    const ap = attr(body, 'Called-Station-Id') || null;
+    const ssidSeen = ssidFromCalledStation(ap);
+    const remembering = isMac(user) && (!mac || normalizeMac(user) === normalizeMac(mac));
+
+    let email;
+    let ssid = ssidSeen;
+    let device = null;
+    if (remembering) {
+      device = db.portalDevice(mac ?? user);
+      if (!device) return refuse(res, 'Sign in on the page that opens.'); // a new device: nothing to log
+      if (!ssid) {
+        // Without the SSID a student's remembered phone could get on to the staff network.
+        if (!noSsidWarned.get('x')) log('portal_ssid_error', { error: 'the vSZ sent no SSID in Called-Station-Id, so remembered devices must sign in again (see the README)' });
+        noSsidWarned.set('x', true, 3600_000);
+        return refuse(res, 'Sign in on the page that opens.');
+      }
+      email = device.email;
+    } else {
+      email = normalizeUsername(user, cfg.defaultDomain);
+      const ticket = tickets?.redeem(email, pass);
+      if (!ticket) {
+        log('denied', { email, mac, reason: 'not signed in on the portal (unknown or expired one-time password)' });
+        return refuse(res, 'Sign in on the page that opens.');
+      }
+      ssid ??= ticket.ssid;
+    }
+
+    let decision;
+    try {
+      decision = await access.check(email);
+    } catch (err) {
+      log('directory_error', { email, error: err.message });
+      return reply(res, 503, { error: 'directory unavailable' });
+    }
+    if (!decision.allow) {
+      // Someone blocked, suspended or no longer in a rule loses their remembered devices.
+      if (device) db.forgetDevices(email);
+      log('denied', { email, mac, reason: decision.reason, orgUnit: decision.orgUnitPath });
+      return refuse(res, decision.rule?.message ?? "This account can't use the school WiFi.");
+    }
+    const net = checkNetwork(config.portal.networks, decision, ssid);
+    if (!net.ok) {
+      log('denied', { email, mac, reason: net.reason, orgUnit: decision.orgUnitPath });
+      return refuse(res, net.message);
+    }
+
+    const who = decision.email ?? email;
+    if (device) db.touchDevice(mac ?? user);
+    else if (config.portal.rememberDays > 0 && mac) db.rememberDevice({ mac, email: who, ssid: net.ssid }, config.portal.rememberDays);
+    status.lastAccept = Date.now();
+    const first = db.recordLogin({ email: who, mac, vlanId: net.vlanId, rule: decision.rule?.name ?? null, ap });
+    if (first) log('signed_in', { email: who, mac, rule: decision.rule?.name, vlanId: net.vlanId, ssid: net.ssid, how: device ? 'remembered device' : 'sign-in page', orgUnit: decision.orgUnitPath });
+    return reply(res, 200, { 'reply:Session-Timeout': cfg.sessionTimeout, 'reply:User-Name': who });
+  }
+
   async function postAuth(res, body, result) {
     const { email, mac, ap } = who(body);
     status[result === 'accept' ? 'lastAccept' : 'lastReject'] = Date.now();
@@ -117,6 +189,8 @@ export function createRadiusApi({ config, db, access, settings, log }) {
     const raw = String(attr(body, 'User-Name') ?? '').trim();
     const mac = attr(body, 'Calling-Station-Id') || null;
     if (/^guest: /i.test(raw)) return raw;
+    // A remembered device's session may be reported under its MAC.
+    if (isMac(raw)) return db.portalDevice(raw)?.email ?? db.lastLoginByMac(raw) ?? `unknown device ${mac ?? raw}`;
     const email = normalizeUsername(raw, cfg.defaultDomain);
     if (email && !/^anonymous@/.test(email)) return email;
     return (mac && db.lastLoginByMac(mac)) || `unknown device ${mac ?? ''}`.trim();
@@ -153,11 +227,12 @@ export function createRadiusApi({ config, db, access, settings, log }) {
     if (req.method !== 'POST' || !allowed(req)) return reply(res, 404, { error: 'not found' });
     const body = await readJson(req);
     status.lastRequest = Date.now();
+    if (url.pathname === '/radius/portal') return portal(res, body);
     if (url.pathname === '/radius/authorize') return authorize(res, body);
     if (url.pathname === '/radius/post-auth') return postAuth(res, body, url.searchParams.get('result'));
     if (url.pathname === '/radius/accounting') return accounting(res, body);
     return reply(res, 404, { error: 'not found' });
   }
 
-  return { handle, status: () => status, close: () => refused.close() };
+  return { handle, status: () => status, close: () => (refused.close(), noSsidWarned.close()) };
 }

@@ -286,11 +286,20 @@ export function createAdmin({ config, db, settings, keys, access, platform = nul
   // what the school records about WiFi use (POPIA). Filled in from the config.
   function guide(res) {
     const e = escapeHtml;
-    const { ssid, serverName, defaultDomain: domain } = config.radius;
+    const domain = config.radius.defaultDomain;
+    const nets = Object.entries(config.portal.networks);
+    const ssid = nets.map(([n]) => n).join(' / ');
     const name = settings.current().branding.name;
     const days = settings.current().retentionDays;
     const contact = config.alerts.to[0] ?? config.admin.emails[0] ?? '';
+    const remember = config.portal.rememberDays;
     const step = (items) => `<ol>${items.map((i) => `<li>${i}</li>`).join('')}</ol>`;
+    const which = nets.length > 1
+      ? `<ul>${nets.map(([n]) => {
+          const rules = settings.current().policy.rules.filter((r) => !r.deny && r.vlanId === config.portal.networks[n]).map((r) => r.name);
+          return `<li><strong>${e(n)}</strong>${rules.length ? `: ${e(rules.join(', '))}` : ''}</li>`;
+        }).join('')}</ul>`
+      : '';
     send(
       res,
       200,
@@ -301,46 +310,34 @@ export function createAdmin({ config, db, settings, keys, access, platform = nul
 <article class="guide">
   <header><img src="/admin/crest-128.png" alt=""><div><div class="slip-brand">${e(config.branding.school || name)}</div><h1>Connecting to ${e(ssid)}</h1></div></header>
 
-  <p class="lead">Log in with your <strong>school Google account</strong>: your school email address (or just the part before @${e(domain)}) and the password you use for Gmail and Classroom. There's no separate WiFi password.</p>
-
-  <div class="guide-warn"><strong>Stay safe:</strong> your device must check that it is talking to <strong>${e(serverName)}</strong>. Set it up exactly as below. If a device ever asks you to "trust" a certificate or "continue connecting" with one you didn't expect, <strong>stop</strong> and tell IT: it may be a fake network trying to collect passwords.</div>
+  <p class="lead">Sign in with your <strong>school Google account</strong>: your school email address (or just the part before @${e(domain)}) and the password you use for Gmail and Classroom. There's no separate WiFi password and nothing to install.</p>
+  ${which ? `<p>Use the network for your group:</p>${which}` : ''}
 
   <div class="guide-grid">
-    <section><h2>iPhone, iPad and Mac</h2>${step([
-      'Ask IT for the <strong>setup file</strong> (sent by email or AirDrop) and open it.',
-      'iPhone/iPad: <strong>Settings → Profile Downloaded → Install</strong>. Mac: <strong>System Settings → Privacy &amp; Security → Profiles</strong>.',
-      'Enter your school email and password when asked.',
-      `Your device joins ${e(ssid)} from now on by itself.`,
-    ])}<p class="muted">Joining ${e(ssid)} without the setup file won't work on Apple devices.</p></section>
-
-    <section><h2>Android</h2>${step([
-      `Settings → WiFi → <strong>${e(ssid)}</strong>.`,
-      'EAP method: <strong>TTLS</strong>. Phase 2 authentication: <strong>PAP</strong>.',
-      'CA certificate: <strong>Use system certificates</strong>.',
-      `Domain: <strong>${e(serverName)}</strong> (exactly this).`,
-      'Identity: your school email. Leave anonymous identity empty. Password: your school password.',
+    <section><h2>Phones, tablets and laptops</h2>${step([
+      `Open WiFi settings and tap <strong>${e(nets.length > 1 ? 'your network' : ssid)}</strong>.`,
+      "A sign-in page opens by itself. If it doesn't, open any website in the browser.",
+      'Type your school email and password, then tap <strong>Connect</strong>.',
+      remember > 0 ? `Done. Your device reconnects by itself ${remember >= 60 ? 'for the rest of the term' : `for ${e(remember)} days`}.` : 'Done.',
     ])}</section>
 
-    <section><h2>Windows laptop</h2>${step([
-      'School laptops are set up by IT.',
-      `For your own laptop, ask IT for the <strong>${e(ssid)} setup file</strong>; IT installs it in a minute.`,
-      `Then choose ${e(ssid)} and enter your school email and password.`,
-    ])}<p class="muted">Please don't add the network by hand: Windows then can't check it is the real school network.</p></section>
-
-    <section><h2>Chromebook</h2>${step([
-      'School Chromebooks connect by themselves.',
-      `Your own: WiFi → <strong>${e(ssid)}</strong>, EAP method <strong>EAP-TTLS</strong>, Phase 2 <strong>PAP</strong>, Server CA certificate <strong>Default</strong>, Domain suffix match <strong>${e(serverName)}</strong>, then your email and password.`,
-    ])}</section>
+    <section><h2>Stay safe</h2><ul>
+      <li>The sign-in page is always at <strong>${e(new URL(config.publicUrl).host)}</strong>, with a padlock in the address bar.</li>
+      <li>Never type your password on a page with another address. Tell IT if one asks for it.</li>
+      <li>Don't sign in on someone else's device, and don't let others use your account.</li>
+    </ul></section>
   </div>
 
   <section><h2>If it doesn't connect</h2><ul>
-    <li><strong>Check your password</strong> by signing in to Gmail. If you changed it, use the new one; you may need to "forget" ${e(ssid)} and join again.</li>
-    <li><strong>Still no luck?</strong> Tell IT your school email and the time you tried. They can see why a login was turned away.</li>
+    <li><strong>Check your password</strong> by signing in to Gmail. If you changed it, use the new one.</li>
+    <li><strong>"Your account uses the … network"</strong>: join that network instead.</li>
+    <li><strong>No sign-in page?</strong> Turn WiFi off and on, or open any website such as example.com.</li>
+    <li><strong>Still no luck?</strong> Tell IT your school email and the time you tried. They can see why a sign-in was turned away.</li>
     <li><strong>Visitors</strong> without a school account use <strong>${e(config.dpsk.ssid)}</strong> with a key from IT or reception.</li>
   </ul></section>
 
   <section class="guide-privacy"><h2>What the school records</h2>
-    <p>To keep the network safe and working, the WiFi system records your <strong>school email</strong>, your device's <strong>network address (MAC)</strong>, <strong>when</strong> and <strong>where</strong> (which access point) you connected, and <strong>how much data</strong> you used. It does <strong>not</strong> record which websites you visit or what you do online, and it never sees your password: Google checks that.</p>
+    <p>To keep the network safe and working, the WiFi system records your <strong>school email</strong>, your device's <strong>network address (MAC)</strong>, <strong>when</strong> and <strong>where</strong> (which access point) you connected, and <strong>how much data</strong> you used. It does <strong>not</strong> record which websites you visit or what you do online. Your password goes straight to Google to be checked and is never stored.</p>
     <p>These records are deleted automatically after <strong>${e(days)} days</strong>, are seen only by the school's IT administrators, and are used only to run the WiFi, solve problems and keep use fair. This follows the Protection of Personal Information Act (POPIA) and the school's ICT policy.${contact ? ` Questions: <strong>${e(contact)}</strong>.` : ''}</p>
   </section>
 </article>
@@ -448,7 +445,9 @@ export function createAdmin({ config, db, settings, keys, access, platform = nul
       if (m[2] === 'block') {
         const reason = String(body.reason ?? '').trim().slice(0, 200);
         db.block(email, reason, s.email, now);
-        audit('blocked', { email, reason });
+        // Their devices must sign in again, which a blocked person can't.
+        const forgotten = db.forgetDevices?.(email) ?? 0;
+        audit('blocked', { email, reason, devicesForgotten: forgotten });
       } else {
         db.unblock(email);
         audit('unblocked', { email });

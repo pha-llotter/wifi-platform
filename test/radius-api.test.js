@@ -21,6 +21,7 @@ before(async () => {
     google: { clientId: 'cid', clientSecret: 'cs', allowedDomains: ['school.org'], directory: { enabled: true, serviceAccountKeyFile: 'x', adminEmail: 'a@school.org' } },
     radius: { apiToken: TOKEN, sessionTimeout: 3600 },
     dpsk: { host: 'vsz', protocol: 'http', username: 'u', password: 'p', zoneId: 'z', wlanId: 'w', ssid: 'Guest' },
+    portal: { networks: { Nexus: 30, "Nexus Staff": 20 }, nbi: { host: "vsz", protocol: "http", password: "nbi" } },
     policy: {
       rules: [
         { name: 'Exam rooms', email: '^exam\\.', deny: true, message: 'Exam accounts stay offline.' },

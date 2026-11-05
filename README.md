@@ -1,33 +1,35 @@
-# PHA WiFi: school Google logins on Ruckus SmartZone, with a VLAN per org unit
+# PHA WiFi: school Google sign-in for Ruckus SmartZone WiFi, with a network per group
 
-People join **Nexus** with their **school Google username and password**. Their device lands on the VLAN for their Google org unit (for example staff on VLAN 20, learners on VLAN 30), encrypted from the first moment. There's no key, captive portal or website to visit. Visitors without a school account use a small second SSID, **Guest**, with keys made in the admin dashboard. Printers and other school devices stay on the management network and aren't handled here.
+People join an open school network, a sign-in page opens by itself, and they type their **school Google email and password**. Nothing to install, no certificates, no settings. Staff and learners use different networks, each on its own VLAN (for example **Nexus Staff** on VLAN 1 and **Nexus** on VLAN 10), and the platform only lets each person on to the network for their Google org unit. A device that has signed in is remembered, so it reconnects by itself for the rest of the term. Visitors without a school account use a small separate network, **Guest**, with keys made in the admin dashboard.
 
 ```
- device ──(1) Nexus: email + password (WPA2-Enterprise, EAP-TTLS)──▶ vSZ
- vSZ ──(2) RADIUS──▶ FreeRADIUS (on the platform server, UDP 1812)
- FreeRADIUS ──(3) is the password right?──▶ Google Secure LDAP (ldaps://ldap.google.com)
- FreeRADIUS ──(4) only if it is: "may t.smith@phahs.org.za connect, and on which VLAN?"──▶ platform (local API)
-     platform checks: allowed domain · not blocked · Google directory: active, org unit · rules → VLAN 20
- FreeRADIUS ──(5) Access-Accept + VLAN 20──▶ vSZ ──▶ device online on VLAN 20
+ device ──(1) joins Nexus (open Hotspot / WISPr WLAN)──▶ vSZ: "is this device remembered?" (MAC auth → RADIUS)
+     remembered and still allowed → online at once. Otherwise:
+ vSZ ──(2) redirects the browser──▶ https://wifi.phahs.org.za/?client_mac=…&uip=…&ssid=Nexus
+ person ──(3) email + password──▶ platform ──▶ Google Secure LDAP: is the password right?
+     platform checks: allowed domain · not blocked · Google directory: active, org unit · rules · right network
+ platform ──(4) NBI Login(email, one-time ticket)──▶ vSZ :9443 ──RADIUS──▶ FreeRADIUS ──▶ platform: ticket valid?
+ vSZ ──▶ device online on that network's VLAN; the platform remembers the device for portal.rememberDays
 ```
 
-- **Passwords stay with Google.** The device sends the password inside a TLS tunnel that only FreeRADIUS can open. FreeRADIUS checks it with Google and never passes it to the platform.
-- **Bare usernames work.** `t.smith` becomes `t.smith@phahs.org.za`, and `PHAHS\t.smith` works too.
-- **Changes reach connected devices.** Devices log in again every `radius.sessionTimeout` (12 hours by default), so blocks, suspensions, OU moves and rule changes reach everyone within that time. A changed Google password also applies from their next login; to cut someone off at once, block them and then disconnect their device from the vSZ's wireless client list.
+- **Why a form and not "Sign in with Google":** Google refuses its own sign-in page inside the "Log in to network" window that phones open, so a button would send people off to Safari or Chrome. A plain form works in that window on every device.
+- **Passwords go to Google only.** The sign-in page sends the password straight to Google Secure LDAP to check, and never stores or logs it. The vSZ and RADIUS only ever see a one-time ticket that works once, for two minutes.
+- **Bare usernames work.** `t.smith` becomes `t.smith@phahs.org.za`.
+- **Changes reach remembered devices.** Each reconnect (and each session end, `radius.sessionTimeout`, 12 hours by default) asks the platform again, so blocks, suspensions, OU moves and rule changes apply at the next reconnect. Blocking someone also forgets their devices at once.
 - **Data used per person.** The vSZ reports each session's bytes through RADIUS accounting, so the dashboard shows who's online and how much each person and device used. It shows the amount only, not which sites.
-- **The admin dashboard** (`https://wifi.phahs.org.za/admin`, PHA design) shows who logged in from which device and VLAN, who was turned away and why, data used, the rules, blocks, guest keys, health, backups and alerts.
+- **The admin dashboard** (`https://wifi.phahs.org.za/admin`) shows who signed in from which device and network, who was turned away and why, data used, the rules, blocks, guest keys, health, backups and alerts.
 
-A step-by-step setup guide for the Linux server and the Ruckus vSZ is in [docs/Nexus-setup-guide.pdf](docs/Nexus-setup-guide.pdf) (source: [docs/setup-guide.html](docs/setup-guide.html)).
+The PDF setup guide in [docs/](docs/) still describes the earlier 802.1X design for the school networks. Its parts 1–3 (server, firewall, Google) still apply; for the vSZ, follow this README.
 
 ## The parts
 
 | Part | Runs | Does |
 |---|---|---|
-| **FreeRADIUS 3.2** (`deploy/freeradius`) | Docker, on the platform server | EAP-TTLS for Nexus; checks passwords against Google Secure LDAP; asks the platform for the VLAN |
-| **Platform** (`src/`) | Docker, on the same server | The VLAN decision (`/radius/*`, local only), the admin dashboard, visitor keys on the Guest network via the vSZ API |
-| **Caddy** | Docker, on the same server | HTTPS for the dashboard, and a Let's Encrypt certificate for `radius.phahs.org.za`, which devices see when logging in |
+| **Platform** (`src/`) | Docker, on the platform server | The sign-in page, password checks with Google Secure LDAP, the hand-over to the vSZ (NBI), remembered devices, the admin dashboard, visitor keys on Guest via the vSZ API |
+| **FreeRADIUS 3.2** (`deploy/freeradius`) | Docker, on the same server | Answers the vSZ's RADIUS: sign-ins and reconnects go to the platform (`/radius/portal`); accounting for the Usage page |
+| **Caddy** | Docker, on the same server | HTTPS for the sign-in page and the dashboard |
 | **Google Workspace** | Google | Secure LDAP for passwords, the Directory API for org units and status, OAuth for admin sign-in, optional Gmail alerts |
-| **vSZ** | School | Nexus (802.1X to FreeRADIUS, dynamic VLAN) and Guest (DPSK keys) |
+| **vSZ** | School | Nexus and Nexus Staff (Hotspot / WISPr, external portal, MAC auth), Guest (DPSK keys) |
 
 ## Setup
 
@@ -68,15 +70,26 @@ Firewall:
    - Make a **Shared Drive** (for example "WiFi backups") and add the uploading user as **Content manager**. That user is `alerts.from` unless you set `backup.drive.as`.
    - Make a folder in it, and copy the last part of the folder's URL into `backup.drive.folderId`. The last 30 copies are kept (`backup.drive.keep`); older ones go to the Shared Drive's trash.
 
-### 3. The vSZ
+### 3. The vSZ and the school firewall
 
-1. **Nexus** (school SSID):
-   - **Authentication:** 802.1X EAP, encryption **WPA2** (or WPA2/WPA3), authentication service: a new **RADIUS** service pointing at the server's IP on port **1812**, with the shared secret from `radius.env`.
-   - **Accounting** (for the Usage page): a **RADIUS Accounting** service pointing at the same server on port **1813** with the same secret, with an **interim update** interval of about **10 minutes**. Shorter intervals make figures fresher but send more traffic. Attach it to Nexus, and to the Guest WLAN too if your vSZ allows accounting on a DPSK WLAN. Guests then show under their key's name.
-   - **Dynamic VLAN:** turn it on (AAA override), so the VLAN from RADIUS applies. The VLANs your rules use must reach the APs.
-   - **Fast roaming:** turn on **802.11r** and/or **OKC / PMK caching**. Devices then don't do a full login, and a Google check, every time they move between APs. This matters for Google's [Secure LDAP quotas](https://support.google.com/a/answer/9048516).
-2. **Guest** (guest SSID): a WPA2 WLAN with **Dynamic PSK** enabled and expiration **Unlimited** (the platform ends guest keys itself). Use a DPSK key length of about 12–16 characters, so keys can be typed off a slip.
-3. **API account and firewall for Guest keys:** create a vSZ admin account for the platform, and allow **TCP 8443** to the vSZ from the server's IP only.
+Menu names are for SmartZone 6.x/7.x.
+
+1. **RADIUS services:** **Security → Authentication → Proxy (SZ Authenticator)**: a RADIUS service to the server's IP, port **1812**, with `RADIUS_SECRET` from radius.env. **Security → Accounting → Proxy**: the same server, port **1813**, same secret.
+2. **The portal interface (NBI):** **System → General Settings → WISPr Northbound Interface**: enable it and set a password (`portal.nbi.password`). The platform logs devices in through it on TCP **9443**.
+3. **The sign-in portal:** **Security → Hotspots & Portals → Hotspot (WISPr) → Create**:
+   - Logon URL: **External**, redirect unauthenticated users to `https://wifi.phahs.org.za/`.
+   - Start page: redirect to the URL the user wanted.
+   - User session: timeout about **720 minutes**, grace period about **60 minutes**.
+   - Walled garden: `wifi.phahs.org.za` only. Don't add Apple's or Google's captive-check hosts, or phones won't notice the sign-in page.
+4. **The WLANs**, one per network in `portal.networks`, each with the same portal:
+   - Authentication type **Hotspot (WISPr)**, method **Open**, encryption **None**.
+   - Authentication and accounting services from step 1 (**Use the controller as proxy**), interim updates every **10 minutes**.
+   - **Access VLAN**: that network's VLAN, exactly as in `portal.networks`.
+   - **MAC authentication bypass** (in the Hotspot options): **on**. This is what lets remembered devices reconnect without the page.
+   - **RADIUS options → Called Station ID**: a format that includes the SSID (for example **AP MAC:SSID**). The platform reads the network from it; without it, remembered devices see the page again each time.
+   - Client isolation on, if you like.
+5. **Guest:** a WPA2 WLAN with **Dynamic PSK** enabled, Keyboard-Friendly keys of 12–16 characters, expiration **Unlimited** (the platform ends guest keys itself). The platform needs a vSZ admin account with **WLAN** and **User/Device/App** full access.
+6. **School firewall:** port-forward from the server's IP **only**: the vSZ API (`dpsk.port`, to vSZ 8443) and the NBI (`portal.nbi.port`, to vSZ 9443). Never open these to everyone.
 
 ### 4. Install
 
@@ -116,21 +129,16 @@ Caddy gets both certificates within a minute. FreeRADIUS restarts once a day, wh
 
 1. **Connections:** in the dashboard, **Settings → Check connections**, or on the server:
    `docker compose exec wifi-portal node scripts/check-connections.js /etc/wifi-portal/config.json`.
-   It tries the Google directory, Google Secure LDAP with the client certificate, the vSZ API, and sends a test alert email (`--no-email` skips it), and says what's wrong for any that fail.
-2. **A real login:** `sudo ./scripts/test-login.sh you@phahs.org.za` logs in to FreeRADIUS on the server the way a phone does (EAP-TTLS/PAP, checking the certificate name) and prints the VLAN it got. It asks for the password, which never appears on the command line. The first run builds a small `eapol_test` image.
+   It tries the Google directory, Google Secure LDAP with the client certificate and access credentials, the vSZ API, the vSZ portal interface (NBI), and sends a test alert email (`--no-email` skips it), and says what's wrong for any that fail.
+2. **A real sign-in:** join Nexus with a phone and sign in. **Activity** shows it, and **People** shows the device and network.
 
 **Monitoring:** `docker compose ps` shows each container's health (the platform answers `/healthz`; FreeRADIUS answers a local Status-Server check). Point an uptime monitor (for example Uptime Kuma, or your RMM) at `https://wifi.phahs.org.za/healthz`. Docker's logs are capped at 5 × 20 MB per container, and `wifi.jsonl` rotates at 50 MB, keeping 5 old copies.
 
 ### 5. Connecting devices
 
-| Device | How |
-|---|---|
-| **iPhone, iPad, Mac** | Install the setup profile: run `docker compose run --rm wifi-portal node scripts/apple-profile.js /etc/wifi-portal/config.json /var/lib/wifi-portal/Nexus.mobileconfig` (the container can't write to `/etc/wifi-portal`) and share the file by **email or AirDrop**. Opening it installs Nexus and asks for the email and password once. Without the profile, Apple devices send the password in a form Google can't check, so they won't connect. |
-| **Android** | WiFi → Nexus → EAP method **TTLS**, Phase 2 **PAP**, CA certificate **Use system certificates**, Domain **radius.phahs.org.za** (required), Identity: school email, Password. Leave anonymous identity empty. |
-| **Windows 10/11** | Install the WiFi profile: run `docker compose run --rm wifi-portal node scripts/windows-profile.js /etc/wifi-portal/config.json /var/lib/wifi-portal/Nexus.xml`, then on each laptop `netsh wlan add profile filename="Nexus.xml" user=all` (or deploy it with Intune or Group Policy). Connect and enter the email and password once. |
-| **Chromebook** | WiFi → Nexus → EAP method **EAP-TTLS**, Phase 2 **PAP**, Server CA **Default**, Subject match / Domain **radius.phahs.org.za**, Identity and password. For managed Chromebooks, push the same settings from the Admin console (**Devices → Networks → Wi-Fi**). |
+Nothing to set up on any device. Join the network for your group, sign in on the page that opens, done. The dashboard's **Settings → Connection guide** prints a one-page guide for staff and learners.
 
-**Always set devices up this way, never by hand.** Inside the encrypted tunnel the password is sent as is (PAP, because Google can only check plain passwords). That's safe only when the device checks it is talking to `radius.phahs.org.za`. A device set up by hand, especially Windows ("Continue connecting?"), will hand the password to a fake access point with the same name. The profiles and the Android/Chromebook **Domain** setting prevent that. Turning on **2-Step Verification** for staff limits the damage if a password does leak.
+If the page doesn't open by itself, open any `http://` website (for example `http://example.com`). A phone's "private WiFi address" stays the same per network, so being remembered works; a device that changes it (for example iOS set to **Rotating**) signs in again when it does.
 
 ## Rules
 
@@ -200,7 +208,7 @@ Run Nexus next to the current network for one or two weeks with IT and a few tea
 | # | Check | How |
 |---|---|---|
 | 1 | Every connection works | **Settings → Check connections**: all green, and the test email arrived. |
-| 2 | Google checks passwords | `sudo ./scripts/test-login.sh` with a staff account and a learner account: accepted on VLAN 20 and 30. Then with a wrong password: refused. |
+| 2 | Google checks passwords | Sign in on the page with a staff account on Nexus Staff and a learner account on Nexus: both connected. Then a wrong password (refused), and a learner on Nexus Staff (told to use Nexus). |
 | 3 | The vSZ applies the VLAN | A staff phone and a learner phone on Nexus get addresses from their own VLANs. **People** shows the VLAN each login was given. |
 | 4 | Usage arrives | After 10–20 minutes online, the phone shows under **Usage → Online now** with growing figures. |
 | 5 | Every kind of device | iPhone with the profile, a Mac, Android with the Domain set, a Windows laptop with the profile, a school Chromebook, and a personal Chromebook. |

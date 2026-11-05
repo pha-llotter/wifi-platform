@@ -16,6 +16,7 @@ const baseConfig = (extra = {}) =>
     google: { clientId: 'cid', clientSecret: 'cs', allowedDomains: ['school.org'], directory: { enabled: true, serviceAccountKeyFile: 'x', adminEmail: 'a@school.org' } },
     radius: { apiToken: 'test-token-0123456789abcdef' },
     dpsk: { host: 'vsz', protocol: 'http', username: 'u', password: 'p', zoneId: 'z', wlanId: 'w', ssid: 'Guest' },
+    portal: { networks: { Nexus: 30, "Nexus Staff": 20 }, nbi: { host: "vsz", protocol: "http", password: "nbi" } },
     admin: { emails: ['it@school.org'] },
     alerts: { from: 'alerts@school.org', to: ['it@school.org'] },
     ...extra,
@@ -253,7 +254,9 @@ describe('connection guide', () => {
     const r = await h.req('/admin/guide', { cookie: a.cookie });
     assert.equal(r.res.status, 200);
     assert.match(r.text, /Connecting to Nexus/);
-    assert.match(r.text, /radius\.school\.org/);
+    assert.match(r.text, /nothing to install/);
+    assert.match(r.text, /<strong>portal\.test<\/strong>, with a padlock/);
+    assert.match(r.text, /<strong>Nexus Staff<\/strong>: Staff/, 'each network lists the rules that use it');
     assert.match(r.text, /deleted automatically after <strong>90 days/);
     assert.match(r.text, /Guest/);
     assert.doesNotMatch((await h.req('/admin/guide')).text, /Connecting to/);

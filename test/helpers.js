@@ -23,6 +23,7 @@ export async function startPlatform(extra = {}) {
     google: { clientId: 'cid', clientSecret: 'cs', allowedDomains: ['school.org'], directory: { enabled: true, serviceAccountKeyFile: 'x', adminEmail: 'a@school.org' } },
     radius: { apiToken: 'test-token-0123456789abcdef' },
     dpsk: { ...h.vsz.config, port, ssid: 'Guest', guestVlanId: 50, maxGuestDays: 7 },
+    portal: { networks: { Nexus: 30, "Nexus Staff": 20 }, nbi: { host: "vsz", protocol: "http", password: "nbi" } },
     admin: { emails: ['it@school.org'] },
     policy: { rules: [{ name: 'Staff', orgUnit: '/Staff', vlanId: 20 }], default: { vlanId: 30 } },
     ...extra,

@@ -96,7 +96,7 @@ export function ldapSearch({ host, port = 636, cert, key, baseDn, email, identit
 
 // --- The checks.
 
-export function createChecks({ config, directory, mailer, vsz, drive = null, radiusStatus = () => null, ldap = ldapSearch }) {
+export function createChecks({ config, directory, mailer, vsz, nbi = null, drive = null, radiusStatus = () => null, ldap = ldapSearch }) {
   const adminEmail = config.google.directory?.adminEmail;
   const domain = config.radius.defaultDomain;
   const ldapConf = {
@@ -172,8 +172,19 @@ export function createChecks({ config, directory, mailer, vsz, drive = null, rad
       return `${config.dpsk.host}: signed in, ${keys.length} key${keys.length === 1 ? '' : 's'} on ${config.dpsk.ssid} (${vsz.health.security})`;
     }));
 
+    if (nbi) {
+      results.push(await step('vSZ portal interface (sign-ins)', async () => {
+        // A status question about a device that doesn't exist: any reply in the NBI's own
+        // format means the address, port, certificate and password are right.
+        const r = await nbi.status({ ip: '0.0.0.0', mac: '00:00:00:00:00:00' });
+        if (!Number.isFinite(r.code)) throw new Error('the reply was not from the WISPr Northbound Interface');
+        if (/password|authenticat|unauthori/i.test(r.message)) throw new Error(`the vSZ refused the NBI password: ${r.message}`);
+        return `${config.portal.nbi.host}:${config.portal.nbi.port} answered (code ${r.code}${r.message ? `, "${r.message}"` : ''}; ${nbi.health.security})`;
+      }));
+    }
+
     const r = radiusStatus();
-    if (!r?.lastRequest) results.push({ name: 'FreeRADIUS', ok: null, detail: 'no login has reached the platform yet: try `npm run test:login` on the server, or join the WiFi' });
+    if (!r?.lastRequest) results.push({ name: 'FreeRADIUS', ok: null, detail: 'no login has reached the platform yet: join a sign-in network with a phone' });
     else results.push({ name: 'FreeRADIUS', ok: true, detail: `last login request ${Math.round((Date.now() - r.lastRequest) / 60_000)} min ago` });
 
     return results;

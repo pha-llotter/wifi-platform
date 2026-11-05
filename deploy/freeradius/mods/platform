@@ -82,3 +82,34 @@ rest platform_reject {
 		idle_timeout = 60
 	}
 }
+
+# Hotspot (WISPr) logins from the school networks' sign-in page, and returning devices
+# (MAC authentication). The password is the portal's one-time ticket or the device's
+# MAC, never a school password: the platform checks those itself, on the sign-in page.
+rest platform_portal {
+	connect_uri = "$ENV{PLATFORM_URL}"
+	connect_timeout = 3.0
+
+	authorize {
+		uri = "${..connect_uri}/radius/portal"
+		method = "post"
+		body = "post"
+		data = "User-Name=%{urlquote:%{User-Name}}&User-Password=%{urlquote:%{User-Password}}&Calling-Station-Id=%{urlquote:%{Calling-Station-Id}}&Called-Station-Id=%{urlquote:%{Called-Station-Id}}&NAS-Identifier=%{urlquote:%{NAS-Identifier}}"
+		auth = "basic"
+		username = "radius"
+		password = "$ENV{PLATFORM_TOKEN}"
+		require_auth = yes
+		timeout = 5.0
+	}
+
+	pool {
+		start = 0
+		min = 0
+		max = 16
+		spare = 4
+		uses = 0
+		retry_delay = 30
+		lifetime = 0
+		idle_timeout = 60
+	}
+}

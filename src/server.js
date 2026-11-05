@@ -10,9 +10,13 @@ import { loadConfig } from './config.js';
 import { openDb } from './db.js';
 import { createDirectoryClient, createDriveBackup, createMailer, createServiceAccount } from './google.js';
 import { createKeyService } from './keys.js';
+import { createLdapVerifier } from './ldap.js';
 import { createLogger } from './log.js';
+import { createNbiClient } from './nbi.js';
+import { createPortal } from './portal.js';
 import { createRadiusApi } from './radius-api.js';
 import { createSettings } from './settings.js';
+import { createTickets } from './tickets.js';
 import { createVszClient } from './vsz.js';
 
 const config = loadConfig(process.argv[2]);
@@ -40,7 +44,19 @@ const log = (event, data = {}) => {
 alerts = createAlerts({ mailer, to: config.alerts.to, publicUrl: config.publicUrl, log });
 
 const access = createAccess({ settings, directory });
-const radiusApi = createRadiusApi({ config, db, access, settings, log });
+const tickets = createTickets();
+const radiusApi = createRadiusApi({ config, db, access, settings, tickets, log });
+
+// The sign-in page checks passwords with Google Secure LDAP and hands signed-in devices
+// to the vSZ through its portal interface (NBI).
+const ldapConf = config.google.ldap;
+const verifyPassword = createLdapVerifier({
+  ...ldapConf,
+  cert: fs.readFileSync(ldapConf.clientCert),
+  key: fs.readFileSync(ldapConf.clientKey),
+});
+const nbi = createNbiClient(config.portal.nbi);
+const portal = createPortal({ config, settings, access, verifyPassword, nbi, tickets, log });
 
 const drive = config.backup.drive ? createDriveBackup({ serviceAccount, ...config.backup.drive }) : null;
 
@@ -77,9 +93,9 @@ const platform = { backupNow, status: () => ({ backup: lastBackup, alerts: alert
 
 const vsz = createVszClient(config.dpsk);
 const keys = createKeyService({ config, db, vsz, log });
-platform.checks = createChecks({ config, directory, mailer, vsz, drive, radiusStatus: radiusApi.status });
+platform.checks = createChecks({ config, directory, mailer, vsz, nbi, drive, radiusStatus: radiusApi.status });
 const admin = createAdmin({ config, db, settings, keys, access, platform, log });
-const app = createApp({ admin, radiusApi, log });
+const app = createApp({ admin, radiusApi, portal, log });
 
 const listen = (server, port, host) =>
   new Promise((resolve, reject) => server.once('error', reject).listen(port, host, () => resolve(server)));
@@ -134,7 +150,8 @@ log('started', {
   publicUrl: config.publicUrl,
   http: config.http.port,
   https: config.https?.port ?? null,
-  schoolSsid: config.radius.ssid,
+  networks: config.portal.networks,
+  nbiSecurity: nbi.health.security,
   guestSsid: config.dpsk.ssid,
   vszSecurity: vsz.health.security,
   directory: Boolean(directory),
@@ -147,6 +164,8 @@ function shutdown() {
   for (const t of timers) clearInterval(t);
   vsz.close();
   radiusApi.close();
+  portal.close();
+  tickets.close();
   admin.close();
   for (const s of servers) s.close();
   db.close();

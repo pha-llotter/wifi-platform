@@ -30,6 +30,17 @@
     "default": null
   },
 
+  "portal": {
+    "networks": { "Nexus": 10, "Nexus Staff": 1 },
+    "rememberDays": 90,
+    "nbi": {
+      "host": "203.0.113.10",
+      "port": 9443,
+      "password": "the WISPr Northbound Interface password set on the vSZ",
+      "tlsFingerprint": "usually the same as dpsk.tlsFingerprint"
+    }
+  },
+
   "dpsk": {
     "ssid": "Guest",
     "host": "203.0.113.10",

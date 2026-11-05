@@ -72,6 +72,39 @@ export function normalizeConfig(raw) {
   need(c.dpsk.protocol !== 'https' || c.dpsk.tlsFingerprint || c.dpsk.tlsVerify === true,
     'dpsk.tlsFingerprint is required so the vSZ certificate is checked (run "npm run vsz:fingerprint" and compare it with the vSZ web console)');
 
+  // The school networks: open Hotspot (WISPr) WLANs whose sign-in page is this platform.
+  // networks maps each SSID to the VLAN its WLAN puts devices on; a person may only sign
+  // in on a network whose VLAN matches their rule. Signed-in devices are remembered for
+  // rememberDays and reconnect without the page (MAC authentication on the WLAN).
+  c.portal = { rememberDays: 90, ...c.portal };
+  const nets = c.portal.networks;
+  need(nets && typeof nets === 'object' && Object.keys(nets).length > 0,
+    'portal.networks must list each sign-in network and its VLAN, e.g. {"Nexus": 10, "Nexus Staff": 1}');
+  for (const [ssid, vlan] of Object.entries(nets ?? {})) {
+    need(Number.isInteger(vlan) && vlan >= 1 && vlan <= 4094, `portal.networks["${ssid}"] must be the VLAN number of that network (1 to 4094)`);
+  }
+  need(Number.isInteger(c.portal.rememberDays) && c.portal.rememberDays >= 0 && c.portal.rememberDays <= 365,
+    'portal.rememberDays must be from 0 (sign in every time) to 365');
+  c.portal.nbi = { port: 9443, protocol: 'https', tlsVerify: false, tlsFingerprint: null, ...c.portal.nbi };
+  need(c.portal.nbi.host, 'portal.nbi.host is the address the platform reaches the vSZ portal interface (NBI) on');
+  need(c.portal.nbi.password, 'portal.nbi.password is the WISPr Northbound Interface password set on the vSZ');
+  need(!c.portal.nbi.tlsFingerprint || /^([0-9a-f]{2}:?){32}$/i.test(c.portal.nbi.tlsFingerprint),
+    'portal.nbi.tlsFingerprint must be a SHA-256 fingerprint (run scripts/vsz-fingerprint.js against the NBI port)');
+  need(c.portal.nbi.protocol !== 'https' || c.portal.nbi.tlsFingerprint || c.portal.nbi.tlsVerify === true,
+    'portal.nbi.tlsFingerprint is required so the vSZ certificate is checked before the NBI password is sent');
+
+  // Google Secure LDAP checks the passwords typed on the sign-in page.
+  c.google.ldap = {
+    host: 'ldap.google.com',
+    port: 636,
+    clientCert: '/etc/wifi-portal/google-ldap/ldap-client.crt',
+    clientKey: '/etc/wifi-portal/google-ldap/ldap-client.key',
+    baseDn: c.google.allowedDomains[0] ? c.google.allowedDomains[0].split('.').map((p) => `dc=${p}`).join(',') : '',
+    identity: '',
+    password: '',
+    ...c.google.ldap,
+  };
+
   // Data used per person comes from the vSZ's RADIUS accounting. alertGb: email IT
   // when someone passes this much in a day (null = off; also editable in the dashboard).
   c.usage = { alertGb: null, ...c.usage };

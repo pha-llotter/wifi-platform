@@ -28,7 +28,7 @@ export function fetchFingerprint(host, port = 8443) {
 // With a pinned fingerprint, a connection is handed to the request only after the
 // certificate matched, so the API password never goes to anyone else. This works with
 // the vSZ's self-signed certificate, which normal verification would reject.
-function pinnedAgent(fingerprint) {
+export function pinnedAgent(fingerprint) {
   const want = normalizeFingerprint(fingerprint);
   const agent = new https.Agent({ keepAlive: true });
   agent.createConnection = (options, callback) => {

@@ -60,11 +60,13 @@ async function startPlatform(token = 'e2e-token-0123456789abcdef') {
   const { openDb } = await import(new URL('../../src/db.js', import.meta.url));
   const db = openDb(dbFile);
   db.block('blocked.user@phahs.org.za', 'e2e test', 'test');
+  db.rememberDevice({ mac: '02:00:00:00:00:42', email: 'pupil@phahs.org.za', ssid: 'Nexus' }, 90);
   db.close();
   const config = {
     publicUrl: 'http://localhost:18099',
     http: { host: '0.0.0.0', port: 18099 },
-    google: { clientId: 'cid', clientSecret: 'cs', allowedDomains: ['phahs.org.za'] },
+    google: { clientId: 'cid', clientSecret: 'cs', allowedDomains: ['phahs.org.za'], ldap: { clientCert: path.join(out, 'client.pem'), clientKey: path.join(out, 'client.key') } },
+    portal: { networks: { Nexus: 30, 'Nexus Staff': 20 }, nbi: { host: '127.0.0.1', port: 18444, protocol: 'http', password: 'nbi' } },
     radius: { apiToken: token, apiAllowFrom: ['0.0.0.0/0'] },
     dpsk: { host: '127.0.0.1', port: 18443, protocol: 'http', username: 'dev', password: 'dev', zoneId: 'zone-1', wlanId: 'wlan-1', ssid: 'Guest' },
     policy: {
@@ -163,6 +165,36 @@ try {
   const used = db.usageOn('t.smith@phahs.org.za', dayOf(Date.now()));
   db.close();
   expect('accounting through FreeRADIUS records the data used (with gigawords)', used.down === 2 ** 32 + 900_000_000 && used.up === 40_000_000, JSON.stringify(used));
+
+  // The sign-in networks (Hotspot / WISPr): PAP requests go to the platform's /radius/portal.
+  // A remembered device reconnects by MAC; the sign-in page path uses the same route
+  // with a one-time ticket (covered in test/portal.test.js).
+  const hotspot = (attrs) => {
+    try {
+      return compose('exec', '-T', 'freeradius', 'sh', '-c', `printf '${attrs.join('\\n')}\\n' | radclient -x -r 1 -t 5 127.0.0.1:1812 auth testing123`);
+    } catch (err) {
+      return `${err.stdout ?? ''}${err.stderr ?? ''}`;
+    }
+  };
+  const tail = (text, n) => text.trim().split('\n').slice(-n).join(' | ');
+  const macLogin = (mac, ssid) =>
+    hotspot([
+      `User-Name = "${mac.replace(/:/g, '')}"`,
+      `User-Password = "${mac.replace(/:/g, '')}"`,
+      `Calling-Station-Id = "${mac.replace(/:/g, '-').toUpperCase()}"`,
+      `Called-Station-Id = "AA-BB-CC-00-11-22:${ssid}"`,
+    ]);
+  const back = macLogin('02:00:00:00:00:42', 'Nexus');
+  expect(
+    'a remembered device reconnects on its network, with its owner and session length',
+    /Access-Accept/.test(back) && /User-Name = "pupil@phahs\.org\.za"/.test(back) && /Session-Timeout = /.test(back),
+    tail(back, 8),
+  );
+  const wrongNet = macLogin('02:00:00:00:00:42', 'Nexus Staff');
+  expect("a learner's remembered device is refused on the staff network", /Access-Reject/.test(wrongNet) && /Nexus/.test(wrongNet), tail(wrongNet, 6));
+  expect('an unknown device is refused (so the vSZ shows the sign-in page)', /Access-Reject/.test(macLogin('02:00:00:00:00:77', 'Nexus')));
+  const guess = hotspot(['User-Name = "pupil@phahs.org.za"', 'User-Password = "Pupil-Pass-1"', 'Calling-Station-Id = "02-00-00-00-00-43"', 'Called-Station-Id = "AA-BB-CC-00-11-22:Nexus"']);
+  expect('a school password sent straight to RADIUS is refused: only the sign-in page lets people on', /Access-Reject/.test(guess), tail(guess, 6));
 
   // The Docker health check in docker-compose.yml (Status-Server to sites/status).
   let health = '';

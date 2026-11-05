@@ -1,5 +1,9 @@
-# Outer server: what the vSZ talks to. Only EAP (802.1X) is accepted; the TTLS tunnel
-# is handled here and the login inside it by the inner-tunnel server.
+# What the vSZ talks to. The school networks are open Hotspot (WISPr) WLANs with the
+# platform's sign-in page, so a login here is one of:
+#  - a sign-in from that page: User-Name = the email, User-Password = a one-time ticket
+#  - a returning device (MAC authentication): User-Name = User-Password = its MAC
+# Both are decided by the platform (POST /radius/portal). EAP (802.1X) is still handled
+# by the inner-tunnel server, for a WLAN that uses it.
 server default {
 	listen {
 		type = auth
@@ -19,7 +23,18 @@ server default {
 		eap {
 			ok = return
 		}
-		# Anything that isn't an 802.1X login is refused.
+		# Hotspot logins arrive with a plain (PAP) password; CHAP and the rest are refused.
+		if (&User-Password) {
+			platform_portal {
+				fail = 1
+			}
+			if (ok || updated) {
+				update control {
+					&Auth-Type := Accept
+				}
+				return
+			}
+		}
 		reject
 	}
 

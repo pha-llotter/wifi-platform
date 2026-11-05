@@ -1,0 +1,125 @@
+/* The WiFi sign-in page. It opens in phones' small "Log in to network" window, so it is
+   one narrow card that works from 320px up, with no outside resources. */
+@font-face { font-family: "Inter"; src: url("/portal/inter.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+
+:root {
+  --brand: #02298e;
+  --brand-deep: #12055b;
+  --gold-light: #f4eb63;
+  --hero: linear-gradient(120deg, var(--brand-deep) 0%, var(--brand) 55%, #0b3fb0 100%);
+  --bg: #f3f6fb;
+  --surface: #ffffff;
+  --text: #141a33;
+  --muted: #5b6380;
+  --line: #cfd6e4;
+  --accent: #02298e;
+  --accent-hover: #0636b3;
+  --ok: #138a4b;
+  --bad: #d0343c;
+  --bad-soft: #fde8ea;
+  --ring: 0 0 0 3px rgba(34, 135, 222, 0.35);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1024;
+    --surface: #141a33;
+    --text: #e6eaf7;
+    --muted: #a3abc6;
+    --line: #2c3557;
+    --accent: #3b74e6;
+    --accent-hover: #5a8cf0;
+    --ok: #3ccf83;
+    --bad: #ff6b72;
+    --bad-soft: #3a1820;
+  }
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.5 "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 24px 16px;
+}
+.card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(18, 5, 91, 0.14);
+  padding-bottom: 24px;
+}
+header {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 18px 22px;
+  background: var(--hero);
+  color: #fff;
+}
+header img { width: 56px; height: 56px; flex: none; }
+.school { font-weight: 750; font-size: 1.1rem; line-height: 1.25; }
+.motto { color: var(--gold-light); font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 650; margin-top: 2px; }
+
+h1 { margin: 22px 22px 4px; font-size: 1.5rem; line-height: 1.2; letter-spacing: -0.01em; }
+h1 span { color: var(--accent); }
+.lead { margin: 0 22px 14px; color: var(--muted); }
+.small { margin: 16px 22px 0; color: var(--muted); font-size: 0.875rem; }
+.error {
+  margin: 0 22px 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bad-soft);
+  color: var(--bad);
+  font-weight: 600;
+}
+
+form { display: flex; flex-direction: column; padding: 0 22px; }
+label { font-weight: 600; font-size: 0.9rem; margin: 10px 0 6px; }
+input {
+  font: inherit;
+  font-size: 1rem; /* 16px stops iPhones zooming in */
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  width: 100%;
+}
+input:focus { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
+button {
+  margin-top: 20px;
+  font: inherit;
+  font-weight: 700;
+  font-size: 1.05rem;
+  padding: 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+button:hover { background: var(--accent-hover); }
+button:focus-visible { outline: none; box-shadow: var(--ring); }
+button[disabled] { opacity: 0.7; cursor: progress; }
+
+.done {
+  width: 64px;
+  height: 64px;
+  margin: 26px 22px 0;
+  border-radius: 50%;
+  background: var(--ok);
+  color: #fff;
+  font-size: 2rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

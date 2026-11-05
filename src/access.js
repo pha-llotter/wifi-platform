@@ -1,5 +1,5 @@
-// Decides whether a school account may join the WiFi, and on which VLAN. Used by
-// FreeRADIUS (through radius-api.js) on every 802.1X login.
+// Decides whether a school account may join the WiFi, and on which VLAN. Used by the
+// sign-in page (portal.js) and by FreeRADIUS (through radius-api.js) on every login.
 import { evaluate } from './policy.js';
 import { TtlMap } from './store.js';
 
@@ -12,6 +12,38 @@ export function normalizeUsername(name, defaultDomain) {
   u = u.replace(/^[^\\]+\\/, ''); // DOMAIN\user, as some Windows devices send it
   if (u && !u.includes('@') && defaultDomain) u = `${u}@${defaultDomain}`;
   return u;
+}
+
+/** The SSID out of a Called-Station-Id like "AA-BB-CC-DD-EE-FF:Nexus Staff", or null. */
+export function ssidFromCalledStation(value) {
+  const m = /^(?:[0-9a-f]{2}[-:.]?){5}[0-9a-f]{2}:(.+)$/i.exec(String(value ?? '').trim());
+  return m ? m[1] : null;
+}
+
+/** Finds the configured network for an SSID (exact, then ignoring case). */
+export function findNetwork(networks, ssid) {
+  if (!ssid) return null;
+  if (Object.hasOwn(networks, ssid)) return { ssid, vlanId: networks[ssid] };
+  const key = Object.keys(networks).find((k) => k.toLowerCase() === String(ssid).toLowerCase());
+  return key ? { ssid: key, vlanId: networks[key] } : null;
+}
+
+/**
+ * Whether an allowed person may use this network: each network is one VLAN, so their
+ * rule's VLAN must be that network's. A rule without a VLAN may use any network.
+ */
+export function checkNetwork(networks, decision, ssid) {
+  const net = findNetwork(networks, ssid);
+  if (!net) return { ok: false, reason: `${ssid ? `"${ssid}"` : 'that network'} isn't a sign-in network`, message: "This network isn't set up for school sign-in." };
+  if (decision.vlanId && decision.vlanId !== net.vlanId) {
+    const right = Object.keys(networks).filter((k) => networks[k] === decision.vlanId);
+    return {
+      ok: false,
+      reason: `rule "${decision.rule?.name}" is for VLAN ${decision.vlanId}, not ${net.ssid}`,
+      message: right.length ? `Your account uses the ${right.map((r) => `“${r}”`).join(' or ')} network.` : "Your account can't use this network.",
+    };
+  }
+  return { ok: true, ssid: net.ssid, vlanId: net.vlanId };
 }
 
 export function createAccess({ settings, directory = null, cacheMs = 5 * 60_000 }) {
@@ -44,7 +76,7 @@ export function createAccess({ settings, directory = null, cacheMs = 5 * 60_000 
     if (!decision.allow) {
       return { allow: false, rule: decision.rule, orgUnitPath, reason: decision.rule ? `rule "${decision.rule.name}"` : 'no rule allows them' };
     }
-    return { allow: true, rule: decision.rule, orgUnitPath, vlanId: decision.rule?.vlanId ?? null };
+    return { allow: true, email: e, rule: decision.rule, orgUnitPath, vlanId: decision.rule?.vlanId ?? null };
   }
 
   async function check(email) {

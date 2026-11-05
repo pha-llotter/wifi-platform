@@ -86,6 +86,18 @@ CREATE TABLE IF NOT EXISTS blocked (
   at INTEGER NOT NULL
 );
 
+-- Devices that signed in on the portal, so they reconnect without the sign-in page
+-- until expires (MAC authentication). Forgotten when the person is blocked.
+CREATE TABLE IF NOT EXISTS portal_devices (
+  mac TEXT PRIMARY KEY,
+  email TEXT NOT NULL,
+  ssid TEXT,
+  first INTEGER NOT NULL,
+  last INTEGER NOT NULL,
+  expires INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS portal_devices_email ON portal_devices(email);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -336,6 +348,24 @@ export function openDb(file) {
     return { file: target, size: fs.statSync(target).size, removed: old.length };
   }
 
+  /** Remembers a device signed in on the portal until now + days. */
+  function rememberDevice({ mac, email, ssid = null }, days, now = Date.now()) {
+    const m = normalizeMac(mac);
+    if (!m || !/^[0-9a-f]{2}(:[0-9a-f]{2}){5}$/.test(m)) return false;
+    q(`INSERT INTO portal_devices (mac, email, ssid, first, last, expires) VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(mac) DO UPDATE SET email = excluded.email, ssid = excluded.ssid, last = excluded.last, expires = excluded.expires`)
+      .run(m, String(email).toLowerCase(), ssid, now, now, now + days * 86_400_000);
+    return true;
+  }
+
+  /** The remembered device, or null when it isn't known or its time is up. */
+  const portalDevice = (mac, now = Date.now()) =>
+    q('SELECT * FROM portal_devices WHERE mac = ? AND expires > ?').get(normalizeMac(mac), now) ?? null;
+  const touchDevice = (mac, now = Date.now()) => q('UPDATE portal_devices SET last = ? WHERE mac = ?').run(now, normalizeMac(mac));
+  const forgetDevices = (email) => Number(q('DELETE FROM portal_devices WHERE email = ?').run(String(email).toLowerCase()).changes);
+  const forgetDevice = (mac) => Number(q('DELETE FROM portal_devices WHERE mac = ?').run(normalizeMac(mac)).changes);
+  const devicesOf = (email) => q('SELECT * FROM portal_devices WHERE email = ? ORDER BY last DESC').all(String(email).toLowerCase());
+
   /** Removes events and device records older than the retention period. */
   function purge(retentionDays, now = Date.now()) {
     const cutoff = now - retentionDays * 86_400_000;
@@ -343,6 +373,7 @@ export function openDb(file) {
     const lg = q('DELETE FROM logins WHERE last < ?').run(cutoff);
     const se = q('DELETE FROM sessions WHERE updated < ?').run(cutoff);
     const us = q('DELETE FROM usage_daily WHERE day < ?').run(dayOf(cutoff));
+    q('DELETE FROM portal_devices WHERE expires < ?').run(now);
     return { events: Number(ev.changes), logins: Number(lg.changes), sessions: Number(se.changes), usage: Number(us.changes) };
   }
 
@@ -378,6 +409,12 @@ export function openDb(file) {
     setKeyMac,
     replaceKey,
     keyCounts,
+    rememberDevice,
+    portalDevice,
+    touchDevice,
+    forgetDevices,
+    forgetDevice,
+    devicesOf,
     backup,
     purge,
     close: () => db.close(),
