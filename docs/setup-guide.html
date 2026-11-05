@@ -1,9 +1,9 @@
 <!doctype html>
 <!--
   PHA WiFi setup guide: the Linux server and the Ruckus vSZ.
-  This is the source of docs/PHA-WiFi-setup-guide.pdf. To rebuild the PDF on Windows, from the repo root:
+  This is the source of docs/Nexus-setup-guide.pdf. To rebuild the PDF on Windows, from the repo root:
     & "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --headless --no-pdf-header-footer `
-      --print-to-pdf="docs\PHA-WiFi-setup-guide.pdf" "file:///<full path>/docs/setup-guide.html"
+      --print-to-pdf="docs\Nexus-setup-guide.pdf" "file:///<full path>/docs/setup-guide.html"
   Contents page numbers are typed in by hand: check them after a rebuild.
 -->
 <html lang="en">
@@ -197,7 +197,7 @@ td.k code { white-space: nowrap; }
       <li>What to collect and decide before you start</li>
       <li>Preparing an Ubuntu server: SSH, firewall, Docker</li>
       <li>Google Workspace: Secure LDAP, sign-in, directory</li>
-      <li>Ruckus vSZ: RADIUS services, PHA-WiFi, PHA-Guest, API account</li>
+      <li>Ruckus vSZ: RADIUS services, Nexus, Guest, API account</li>
       <li>The school firewall: what to open, and to whom</li>
       <li>Finishing the server, then testing a real login</li>
       <li>Setting up devices, and the two-week pilot</li>
@@ -216,7 +216,7 @@ td.k code { white-space: nowrap; }
 <section>
   <p class="part-label">Overview</p>
   <h1>How it fits together</h1>
-  <p class="lead">People join <strong>PHA-WiFi</strong> with their school Google email and password. The password is checked by Google, and the platform puts each person on the VLAN for their Google org unit. Visitors use <strong>PHA-Guest</strong> with keys that admins make in the dashboard.</p>
+  <p class="lead">People join <strong>Nexus</strong> with their school Google email and password. The password is checked by Google, and the platform puts each person on the VLAN for their Google org unit. Visitors use <strong>Guest</strong> with keys that admins make in the dashboard.</p>
 
   <div class="figure">
     <svg viewBox="0 0 720 322" xmlns="http://www.w3.org/2000/svg" font-family="Inter, Segoe UI, sans-serif">
@@ -241,7 +241,7 @@ td.k code { white-space: nowrap; }
       <text x="108" y="143" font-size="10" text-anchor="middle" fill="#141a33" font-weight="600">Ruckus access points</text>
       <rect x="22" y="192" width="172" height="110" rx="6" fill="#fff" stroke="#02298e" stroke-width="1.4"/>
       <text x="108" y="240" font-size="11" text-anchor="middle" fill="#12055b" font-weight="700">vSZ controller</text>
-      <text x="108" y="256" font-size="9" text-anchor="middle" fill="#5b6380">PHA-WiFi · PHA-Guest</text>
+      <text x="108" y="256" font-size="9" text-anchor="middle" fill="#5b6380">Nexus · Guest</text>
       <line x1="108" y1="86" x2="108" y2="116" stroke="#0b47b0" stroke-width="1.5" marker-end="url(#ah)"/>
       <text x="116" y="105" font-size="8.5" fill="#5b6380">WiFi</text>
       <line x1="108" y1="160" x2="108" y2="190" stroke="#0b47b0" stroke-width="1.5" marker-end="url(#ah)"/>
@@ -539,7 +539,7 @@ sudo mv ~/service-account.json /etc/wifi-portal/</pre>
 <section class="part">
   <p class="part-label">Part 4</p>
   <h1>Ruckus vSZ</h1>
-  <p class="lead">You'll create two RADIUS services that point at the server, the PHA-WiFi WLAN with dynamic VLANs, the PHA-Guest WLAN with Dynamic PSK, and an API account for guest keys. Then you'll open the school firewall.</p>
+  <p class="lead">You'll create two RADIUS services that point at the server, the Nexus WLAN with dynamic VLANs, the Guest WLAN with Dynamic PSK, and an API account for guest keys. Then you'll open the school firewall.</p>
 
   <div class="note">
     <span class="callout-title">Menu names</span>
@@ -558,7 +558,7 @@ sudo mv ~/service-account.json /etc/wifi-portal/</pre>
   <table>
     <thead><tr><th>Field</th><th>Value</th></tr></thead>
     <tbody>
-      <tr><td class="k">Name</td><td><code>PHA-WiFi RADIUS</code></td></tr>
+      <tr><td class="k">Name</td><td><code>Nexus RADIUS</code></td></tr>
       <tr><td class="k">Service protocol</td><td>RADIUS</td></tr>
       <tr><td class="k">Primary server: IP</td><td>The server's public IP</td></tr>
       <tr><td class="k">Port</td><td><code>1812</code></td></tr>
@@ -572,19 +572,19 @@ sudo mv ~/service-account.json /etc/wifi-portal/</pre>
   </div>
 
   <h2><span class="num">4.3</span>RADIUS accounting service</h2>
-  <p><strong>Security → Accounting → Proxy → Create</strong>. Name it <code>PHA-WiFi accounting</code>, with the same server IP, port <code>1813</code> and the same shared secret. This is what feeds the <strong>Usage</strong> page.</p>
+  <p><strong>Security → Accounting → Proxy → Create</strong>. Name it <code>Nexus accounting</code>, with the same server IP, port <code>1813</code> and the same shared secret. This is what feeds the <strong>Usage</strong> page.</p>
 
-  <h2><span class="num">4.4</span>WLAN: PHA-WiFi (school accounts)</h2>
+  <h2><span class="num">4.4</span>WLAN: Nexus (school accounts)</h2>
   <p><strong>Network → Wireless → Wireless LANs</strong>, select the school's zone, <strong>Create</strong>.</p>
   <table>
     <thead><tr><th>Setting</th><th>Value</th></tr></thead>
     <tbody>
-      <tr><td class="k">Name and SSID</td><td><code>PHA-WiFi</code>. It must match <code>radius.ssid</code> in config.json.</td></tr>
+      <tr><td class="k">Name and SSID</td><td><code>Nexus</code>. It must match <code>radius.ssid</code> in config.json.</td></tr>
       <tr><td class="k">Authentication type</td><td>Standard usage</td></tr>
       <tr><td class="k">Method</td><td><strong>802.1X EAP</strong></td></tr>
       <tr><td class="k">Encryption</td><td>WPA2, AES. WPA2/WPA3 mixed also works.</td></tr>
-      <tr><td class="k">Authentication service</td><td>Tick <strong>Use the controller as proxy</strong>, choose <code>PHA-WiFi RADIUS</code></td></tr>
-      <tr><td class="k">Accounting service</td><td>Tick <strong>Use the controller as proxy</strong>, choose <code>PHA-WiFi accounting</code>, interim updates every <strong>10 minutes</strong></td></tr>
+      <tr><td class="k">Authentication service</td><td>Tick <strong>Use the controller as proxy</strong>, choose <code>Nexus RADIUS</code></td></tr>
+      <tr><td class="k">Accounting service</td><td>Tick <strong>Use the controller as proxy</strong>, choose <code>Nexus accounting</code>, interim updates every <strong>10 minutes</strong></td></tr>
       <tr><td class="k">Access VLAN</td><td>Your most restricted VLAN, for example the learner VLAN <code>30</code></td></tr>
       <tr><td class="k">Dynamic VLAN (AAA override)</td><td><strong>Enabled.</strong> Without it, everyone lands on the access VLAN.</td></tr>
       <tr><td class="k">802.11r Fast BSS Transition</td><td>Enabled</td></tr>
@@ -596,21 +596,21 @@ sudo mv ~/service-account.json /etc/wifi-portal/</pre>
   <ul>
     <li><strong>Why fast roaming matters:</strong> without 802.11r or OKC, every move between APs is a full login and a Google check. That's slower for the user, and it uses up Google's Secure LDAP quota.</li>
     <li><strong>Session length:</strong> the server sends a 12-hour session timeout, so a block or an org unit move reaches every device within a school day. If the WLAN has its own session timeout, leave it at its default.</li>
-    <li>If a few older devices can't see or join PHA-WiFi, try turning 802.11r off and keeping OKC on.</li>
+    <li>If a few older devices can't see or join Nexus, try turning 802.11r off and keeping OKC on.</li>
   </ul>
 
-  <h2><span class="num">4.5</span>WLAN: PHA-Guest (visitors)</h2>
+  <h2><span class="num">4.5</span>WLAN: Guest (visitors)</h2>
   <table>
     <thead><tr><th>Setting</th><th>Value</th></tr></thead>
     <tbody>
-      <tr><td class="k">Name and SSID</td><td><code>PHA-Guest</code>. It must match <code>dpsk.ssid</code> in config.json.</td></tr>
+      <tr><td class="k">Name and SSID</td><td><code>Guest</code>. It must match <code>dpsk.ssid</code> in config.json.</td></tr>
       <tr><td class="k">Authentication type, method</td><td>Standard usage, <strong>Open</strong></td></tr>
       <tr><td class="k">Encryption</td><td>WPA2, AES, with <strong>Dynamic PSK</strong> on (internal DPSK)</td></tr>
       <tr><td class="k">DPSK type and length</td><td>Secure passphrase, <strong>12 to 16</strong> characters, so a key can be typed off a printed slip</td></tr>
       <tr><td class="k">DPSK expiration</td><td><strong>Unlimited.</strong> The platform ends guest keys itself, on the day the admin chose.</td></tr>
       <tr><td class="k">Access VLAN</td><td>The guest VLAN, for example <code>50</code></td></tr>
       <tr><td class="k">Client isolation</td><td>On, so visitors' devices can't see each other</td></tr>
-      <tr><td class="k">Accounting service</td><td><code>PHA-WiFi accounting</code>, if the vSZ offers it on a DPSK WLAN. Guests then show on the Usage page under their key's name.</td></tr>
+      <tr><td class="k">Accounting service</td><td><code>Nexus accounting</code>, if the vSZ offers it on a DPSK WLAN. Guests then show on the Usage page under their key's name.</td></tr>
     </tbody>
   </table>
   <p>Make guest keys in the dashboard, not in the vSZ. Keys that already exist on the vSZ can be brought in with <strong>Settings → Adopt keys</strong>.</p>
@@ -698,7 +698,7 @@ sudo docker compose build
 sudo docker compose run --rm wifi-portal node scripts/vsz-fingerprint.js /etc/wifi-portal/config.json</pre>
   <p>Compare the fingerprint with the one you noted in 4.6. If they match, paste it into <code>dpsk.tlsFingerprint</code>. If they don't, stop: something between the server and the vSZ isn't the vSZ.</p>
 <pre>sudo docker compose run --rm wifi-portal node scripts/vsz-wlans.js /etc/wifi-portal/config.json</pre>
-  <p>This lists each zone and WLAN with its ID. Copy the school zone's <code>zoneId</code>, and the <strong>PHA-Guest</strong> <code>wlanId</code>, into config.json.</p>
+  <p>This lists each zone and WLAN with its ID. Copy the school zone's <code>zoneId</code>, and the <strong>Guest</strong> <code>wlanId</code>, into config.json.</p>
 
   <h2><span class="num">5.5</span>Start everything</h2>
   <div class="warn">
@@ -732,7 +732,7 @@ sudo ./scripts/test-login.sh <var>a.staff.member</var>@phahs.org.za     <span cl
 
   <h2><span class="num">5.9</span>The first phone through the vSZ</h2>
   <ol>
-    <li>Set up one Android phone as in part 6, and connect it to PHA-WiFi with a staff account.</li>
+    <li>Set up one Android phone as in part 6, and connect it to Nexus with a staff account.</li>
     <li>In the dashboard, <strong>Activity</strong> shows the login and its VLAN.</li>
     <li>On the phone, check the IP address is from the staff VLAN's DHCP scope.</li>
     <li>After 10 to 20 minutes, the phone appears under <strong>Usage → Online now</strong>.</li>
@@ -744,7 +744,7 @@ sudo ./scripts/test-login.sh <var>a.staff.member</var>@phahs.org.za     <span cl
 <section class="part">
   <p class="part-label">Part 6</p>
   <h1>Devices and the pilot</h1>
-  <p class="lead">Each kind of device is set up once, in a way that checks it's talking to the real server. Then run PHA-WiFi next to the current network for one or two weeks before everyone moves.</p>
+  <p class="lead">Each kind of device is set up once, in a way that checks it's talking to the real server. Then run Nexus next to the current network for one or two weeks before everyone moves.</p>
 
   <div class="stop">
     <span class="callout-title">Always set devices up this way, never by hand</span>
@@ -753,23 +753,23 @@ sudo ./scripts/test-login.sh <var>a.staff.member</var>@phahs.org.za     <span cl
 
   <h2><span class="num">6.1</span>Making the Apple and Windows profiles</h2>
 <pre>cd /opt/wifi-portal
-sudo docker compose run --rm wifi-portal node scripts/apple-profile.js /etc/wifi-portal/config.json /var/lib/wifi-portal/PHA-WiFi.mobileconfig
-sudo docker compose run --rm wifi-portal node scripts/windows-profile.js /etc/wifi-portal/config.json /var/lib/wifi-portal/PHA-WiFi.xml
-sudo cp /var/lib/wifi-portal/PHA-WiFi.* ~ &amp;&amp; sudo chown $USER ~/PHA-WiFi.*</pre>
+sudo docker compose run --rm wifi-portal node scripts/apple-profile.js /etc/wifi-portal/config.json /var/lib/wifi-portal/Nexus.mobileconfig
+sudo docker compose run --rm wifi-portal node scripts/windows-profile.js /etc/wifi-portal/config.json /var/lib/wifi-portal/Nexus.xml
+sudo cp /var/lib/wifi-portal/Nexus.* ~ &amp;&amp; sudo chown $USER ~/Nexus.*</pre>
   <p class="where">On your PC (PowerShell)</p>
-<pre>scp itadmin@<var>SERVER_IP</var>:~/PHA-WiFi.* .</pre>
+<pre>scp itadmin@<var>SERVER_IP</var>:~/Nexus.* .</pre>
   <p class="small">Neither file holds a secret, so they can be emailed or put on the intranet.</p>
 
   <h2><span class="num">6.2</span>Each kind of device</h2>
   <table>
     <thead><tr><th style="width:22%">Device</th><th>How</th></tr></thead>
     <tbody>
-      <tr><td class="k">iPhone, iPad, Mac</td><td>Send <code>PHA-WiFi.mobileconfig</code> by email or AirDrop and open it. It installs PHA-WiFi and asks for the email and password once. Without the profile, Apple devices send the password in a form Google can't check, so they won't connect.</td></tr>
-      <tr><td class="k">Android</td><td>WiFi → PHA-WiFi → EAP method <strong>TTLS</strong>, Phase 2 <strong>PAP</strong>, CA certificate <strong>Use system certificates</strong>, Domain <code>radius.phahs.org.za</code> (required), Identity: the school email. Leave anonymous identity empty.</td></tr>
-      <tr><td class="k">Windows 10/11</td><td>On each laptop: <code>netsh wlan add profile filename="PHA-WiFi.xml" user=all</code>, or deploy it with Intune or Group Policy. Then connect and enter the email and password once.</td></tr>
+      <tr><td class="k">iPhone, iPad, Mac</td><td>Send <code>Nexus.mobileconfig</code> by email or AirDrop and open it. It installs Nexus and asks for the email and password once. Without the profile, Apple devices send the password in a form Google can't check, so they won't connect.</td></tr>
+      <tr><td class="k">Android</td><td>WiFi → Nexus → EAP method <strong>TTLS</strong>, Phase 2 <strong>PAP</strong>, CA certificate <strong>Use system certificates</strong>, Domain <code>radius.phahs.org.za</code> (required), Identity: the school email. Leave anonymous identity empty.</td></tr>
+      <tr><td class="k">Windows 10/11</td><td>On each laptop: <code>netsh wlan add profile filename="Nexus.xml" user=all</code>, or deploy it with Intune or Group Policy. Then connect and enter the email and password once.</td></tr>
       <tr><td class="k">Managed Chromebooks</td><td>Admin console → <strong>Devices → Networks → Wi-Fi</strong>: EAP-TTLS, inner protocol PAP, Server CA <strong>Default</strong>, Subject match / Domain <code>radius.phahs.org.za</code>.</td></tr>
       <tr><td class="k">Personal Chromebooks</td><td>The same settings, typed in by the user.</td></tr>
-      <tr><td class="k">Very old Android</td><td>Without a Domain field, the phone can't check the server. Send it to PHA-Guest rather than turning checking off.</td></tr>
+      <tr><td class="k">Very old Android</td><td>Without a Domain field, the phone can't check the server. Send it to the Guest network rather than turning checking off.</td></tr>
     </tbody>
   </table>
 
@@ -785,7 +785,7 @@ sudo cp /var/lib/wifi-portal/PHA-WiFi.* ~ &amp;&amp; sudo chown $USER ~/PHA-WiFi
       <tr><td><span class="box"></span></td><td class="k">Every kind of device</td><td>iPhone with the profile, a Mac, Android with the Domain set, a Windows laptop with the profile, a school Chromebook and a personal one.</td></tr>
       <tr><td><span class="box"></span></td><td class="k">Turning people away</td><td>Block a test account: its next login is refused, with the reason under <strong>Activity</strong>. Unblock it. Do the same with a suspended test account in Google.</td></tr>
       <tr><td><span class="box"></span></td><td class="k">Roaming</td><td>Walk across the school on a video call: it shouldn't drop, and Activity shouldn't fill with logins.</td></tr>
-      <tr><td><span class="box"></span></td><td class="k">Guests</td><td>Make a guest key, print the slip, join PHA-Guest with it, then end it: the phone can't join again. Note whether the vSZ also drops it at once.</td></tr>
+      <tr><td><span class="box"></span></td><td class="k">Guests</td><td>Make a guest key, print the slip, join the Guest network with it, then end it: the phone can't join again. Note whether the vSZ also drops it at once.</td></tr>
       <tr><td><span class="box"></span></td><td class="k">Fallback</td><td>After school, <code>sudo docker compose stop wifi-portal</code>, and check new logins do what you decided in part 1. Then <code>sudo docker compose start wifi-portal</code>.</td></tr>
       <tr><td><span class="box"></span></td><td class="k">Backups</td><td><strong>Settings → Back up now</strong>. With Drive set up, the copy appears in the Shared Drive.</td></tr>
       <tr><td><span class="box"></span></td><td class="k">A busy morning</td><td>During the first full morning, watch <strong>Overview</strong> for <code>directory_error</code> and slow logins.</td></tr>
@@ -903,7 +903,7 @@ sudo docker compose logs -f freeradius     <span class="c"># try a login, then C
       <tr><td>Check connections: LDAP can bind but can't search, or Google asks for credentials</td><td>This LDAP client needs access credentials as well as the certificate</td><td>Admin console → the LDAP client → <strong>Access credentials → Generate new credentials</strong>. Add <code>LDAP_IDENTITY=</code> and <code>LDAP_PASSWORD=</code> lines with them to radius.env, then <code>sudo docker compose up -d freeradius</code>.</td></tr>
       <tr><td>LDAP: a TLS or certificate error</td><td>The server's clock is wrong, or the LDAP certificate files don't match</td><td><code>timedatectl</code> should show <em>synchronized: yes</em>. Download the certificate again (3.1).</td></tr>
       <tr><td>Every login refused; Activity empty; Health says FreeRADIUS hasn't called</td><td>The platform token differs between config.json and radius.env</td><td>Make <code>radius.apiToken</code> and <code>PLATFORM_TOKEN</code> the same, then <code>sudo docker compose up -d --force-recreate</code>.</td></tr>
-      <tr><td>Accepted, but everyone is on the same VLAN</td><td>Dynamic VLAN (AAA override) is off on PHA-WiFi</td><td>Turn it on (4.4). People and Activity show which VLAN the server chose.</td></tr>
+      <tr><td>Accepted, but everyone is on the same VLAN</td><td>Dynamic VLAN (AAA override) is off on Nexus</td><td>Turn it on (4.4). People and Activity show which VLAN the server chose.</td></tr>
       <tr><td>Accepted, but the device gets no IP address</td><td>That VLAN doesn't reach the AP, or has no DHCP scope</td><td>Check the switch port is tagged for the VLAN, and the DHCP scope.</td></tr>
       <tr><td>Refused: rule, blocked, suspended or wrong domain</td><td>Working as intended</td><td>Activity gives the reason. Change the rule, the block or the Google account.</td></tr>
       <tr><td>An iPhone or Mac won't connect</td><td>Joined by hand, without the profile</td><td>Forget the network, install the profile (6.1).</td></tr>
@@ -960,7 +960,7 @@ sudo docker compose logs -f freeradius     <span class="c"># try a login, then C
     <tbody>
       <tr><td><code>caddy</code></td><td>HTTPS for the dashboard, and the certificate for <code>radius.phahs.org.za</code></td></tr>
       <tr><td><code>wifi-portal</code></td><td>The platform: the VLAN decision, the dashboard, guest keys, usage, alerts, backups</td></tr>
-      <tr><td><code>freeradius</code></td><td>802.1X logins for PHA-WiFi, checked against Google Secure LDAP</td></tr>
+      <tr><td><code>freeradius</code></td><td>802.1X logins for Nexus, checked against Google Secure LDAP</td></tr>
     </tbody>
   </table>
   <p class="small">The repo's README has the same setup in shorter form, plus how the rules, usage figures and tests work.</p>

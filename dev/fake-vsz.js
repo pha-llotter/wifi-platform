@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 import http from 'node:http';
 import { pathToFileURL } from 'node:url';
 
-export function createFakeVsz({ port = 0, username = 'api', password = 'api-pass', zoneId = 'zone-1', wlanId = 'wlan-1', ssid = 'PHA-WiFi' } = {}) {
+export function createFakeVsz({ port = 0, username = 'api', password = 'api-pass', zoneId = 'zone-1', wlanId = 'wlan-1', ssid = 'Nexus' } = {}) {
   const tickets = new Set();
   const keys = new Map();
   const calls = [];
@@ -107,5 +107,5 @@ export function createFakeVsz({ port = 0, username = 'api', password = 'api-pass
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const vsz = createFakeVsz({ port: 18443, username: 'dev', password: 'dev' });
   await vsz.listen();
-  console.log('[fake-vsz] SmartZone API on http://127.0.0.1:18443 (user dev / dev, zone-1, wlan-1, SSID PHA-WiFi)');
+  console.log('[fake-vsz] SmartZone API on http://127.0.0.1:18443 (user dev / dev, zone-1, wlan-1, SSID Nexus)');
 }

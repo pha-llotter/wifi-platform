@@ -2,9 +2,9 @@
 // PAP, trusting only the RADIUS server's certificate name under Let's Encrypt's roots.
 // Set up by hand, Windows offers "Continue connecting?" for any certificate, so a fake
 // access point could collect passwords; with this profile it refuses instead.
-//   node scripts/windows-profile.js /etc/wifi-portal/config.json PHA-WiFi.xml
+//   node scripts/windows-profile.js /etc/wifi-portal/config.json Nexus.xml
 // On each laptop (or through Intune / Group Policy):
-//   netsh wlan add profile filename="PHA-WiFi.xml" user=all
+//   netsh wlan add profile filename="Nexus.xml" user=all
 // Then connect to the SSID and enter the school email and password once.
 // --root-hash "AA BB …" adds another trusted root's SHA-1 thumbprint, should Let's
 // Encrypt change roots.

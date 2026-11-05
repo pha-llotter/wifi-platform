@@ -62,7 +62,7 @@ describe('guest key tools', () => {
     const [guest] = h.db.keysOfKind('guest');
     const slips = await h.req(`/admin/print?ids=${guest.id}`, { cookie: a.cookie });
     assert.match(slips.text, /class="slip"/);
-    assert.match(slips.text, /<svg[^>]+aria-label="QR code to join PHA-Guest"/);
+    assert.match(slips.text, /<svg[^>]+aria-label="QR code to join Guest"/);
     assert.match(slips.text, /Works until/);
     assert.ok(slips.text.includes(h.vsz.keys.get(guest.id).passphrase));
     assert.doesNotMatch((await h.req(`/admin/print?ids=${guest.id}`)).text, /class="slip"/);

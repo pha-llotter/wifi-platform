@@ -15,7 +15,7 @@
   },
 
   "radius": {
-    "ssid": "PHA-WiFi",
+    "ssid": "Nexus",
     "apiToken": "the same long random token as PLATFORM_TOKEN in radius.env",
     "sessionTimeout": 43200
   },
@@ -30,7 +30,7 @@
   },
 
   "dpsk": {
-    "ssid": "PHA-Guest",
+    "ssid": "Guest",
     "host": "203.0.113.10",
     "port": 8443,
     "apiVersion": "v9_1",

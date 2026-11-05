@@ -15,7 +15,7 @@ const baseConfig = (extra = {}) =>
     publicUrl: 'https://wifi.school.org',
     google: { clientId: 'cid', clientSecret: 'cs', allowedDomains: ['school.org'], directory: { enabled: true, serviceAccountKeyFile: 'x', adminEmail: 'a@school.org' } },
     radius: { apiToken: 'test-token-0123456789abcdef' },
-    dpsk: { host: 'vsz', protocol: 'http', username: 'u', password: 'p', zoneId: 'z', wlanId: 'w', ssid: 'PHA-Guest' },
+    dpsk: { host: 'vsz', protocol: 'http', username: 'u', password: 'p', zoneId: 'z', wlanId: 'w', ssid: 'Guest' },
     admin: { emails: ['it@school.org'] },
     alerts: { from: 'alerts@school.org', to: ['it@school.org'] },
     ...extra,
@@ -244,10 +244,10 @@ describe('connection guide', () => {
   test('admins get a printable guide filled in from the config; others get nothing', async () => {
     const r = await h.req('/admin/guide', { cookie: a.cookie });
     assert.equal(r.res.status, 200);
-    assert.match(r.text, /Connecting to PHA-WiFi/);
+    assert.match(r.text, /Connecting to Nexus/);
     assert.match(r.text, /radius\.school\.org/);
     assert.match(r.text, /deleted automatically after <strong>90 days/);
-    assert.match(r.text, /PHA-Guest/);
+    assert.match(r.text, /Guest/);
     assert.doesNotMatch((await h.req('/admin/guide')).text, /Connecting to/);
   });
 

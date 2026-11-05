@@ -66,7 +66,7 @@ async function startPlatform(token = 'e2e-token-0123456789abcdef') {
     http: { host: '0.0.0.0', port: 18099 },
     google: { clientId: 'cid', clientSecret: 'cs', allowedDomains: ['phahs.org.za'] },
     radius: { apiToken: token, apiAllowFrom: ['0.0.0.0/0'] },
-    dpsk: { host: '127.0.0.1', port: 18443, protocol: 'http', username: 'dev', password: 'dev', zoneId: 'zone-1', wlanId: 'wlan-1', ssid: 'PHA-Guest' },
+    dpsk: { host: '127.0.0.1', port: 18443, protocol: 'http', username: 'dev', password: 'dev', zoneId: 'zone-1', wlanId: 'wlan-1', ssid: 'Guest' },
     policy: {
       rules: [
         { name: 'Exam rooms', email: '^exam\\.', deny: true, message: 'Exam accounts stay offline.' },

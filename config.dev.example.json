@@ -16,7 +16,7 @@
   },
 
   "dpsk": {
-    "ssid": "PHA-Guest",
+    "ssid": "Guest",
     "host": "127.0.0.1",
     "port": 18443,
     "protocol": "http",

@@ -13,5 +13,5 @@ radius.env
 *.db
 *.db-*
 *.mobileconfig
-PHA-WiFi.xml
+Nexus.xml
 school-wifi.xml

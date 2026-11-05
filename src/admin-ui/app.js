@@ -276,7 +276,7 @@ function healthChecks(hl) {
   const r = hl.radius;
   if (r?.lastAccept) items.push(['ok', `Logins are working on ${me.schoolSsid}`, `Last successful login ${ago(r.lastAccept)}.`]);
   if (r?.lastAccounting) items.push(['ok', 'Usage reports are arriving', `Last accounting update ${ago(r.lastAccounting)}.`]);
-  else if (r?.lastAccept) items.push(['warn', 'No usage reports yet', 'Add a RADIUS accounting service (port 1813) to the PHA-WiFi WLAN on the vSZ to see data used per person.']);
+  else if (r?.lastAccept) items.push(['warn', 'No usage reports yet', 'Add a RADIUS accounting service (port 1813) to the Nexus WLAN on the vSZ to see data used per person.']);
   else if (r?.lastRequest) items.push(['warn', `No successful logins on ${me.schoolSsid} yet`, `FreeRADIUS last asked ${ago(r.lastRequest)}. Check Activity for why logins were turned away.`]);
   else items.push(['warn', 'FreeRADIUS hasn’t called yet', 'Expected after the first login attempt. If people can’t connect, check the FreeRADIUS container and its logs.']);
 

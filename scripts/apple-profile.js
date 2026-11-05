@@ -2,7 +2,7 @@
 // SSID. Joined by hand, Apple devices send the password with MSCHAPv2, which Google
 // can't check; this profile tells them to use EAP-TTLS with PAP and to trust only the
 // RADIUS server's certificate name. It asks for the username and password on install.
-//   node scripts/apple-profile.js /etc/wifi-portal/config.json PHA-WiFi.mobileconfig
+//   node scripts/apple-profile.js /etc/wifi-portal/config.json Nexus.mobileconfig
 // Share the file by email or AirDrop; opening it offers to install the profile.
 import crypto from 'node:crypto';
 import fs from 'node:fs';

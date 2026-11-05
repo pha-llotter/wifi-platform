@@ -42,7 +42,7 @@ export function normalizeConfig(raw) {
 
   // The school SSID: 802.1X logins, checked by FreeRADIUS against Google Secure LDAP.
   // FreeRADIUS asks the platform for each person's VLAN over this local API.
-  c.radius = { ssid: 'PHA-WiFi', defaultDomain: c.google.allowedDomains[0] ?? null, serverName: `radius.${c.google.allowedDomains[0] ?? 'example.org'}`, sessionTimeout: 43200, apiAllowFrom: ['127.0.0.1', '::1'], fallbackVlan: null, accountingStaleMinutes: 30, ...c.radius };
+  c.radius = { ssid: 'Nexus', defaultDomain: c.google.allowedDomains[0] ?? null, serverName: `radius.${c.google.allowedDomains[0] ?? 'example.org'}`, sessionTimeout: 43200, apiAllowFrom: ['127.0.0.1', '::1'], fallbackVlan: null, accountingStaleMinutes: 30, ...c.radius };
   need(typeof c.radius.apiToken === 'string' && c.radius.apiToken.length >= 24,
     'radius.apiToken must be a random string of 24+ characters, the same one FreeRADIUS uses (PLATFORM_TOKEN)');
   need(Number.isInteger(c.radius.sessionTimeout) && c.radius.sessionTimeout >= 600,

@@ -22,7 +22,7 @@ export async function startPlatform(extra = {}) {
     publicUrl: 'http://portal.test',
     google: { clientId: 'cid', clientSecret: 'cs', allowedDomains: ['school.org'], directory: { enabled: true, serviceAccountKeyFile: 'x', adminEmail: 'a@school.org' } },
     radius: { apiToken: 'test-token-0123456789abcdef' },
-    dpsk: { ...h.vsz.config, port, ssid: 'PHA-Guest', guestVlanId: 50, maxGuestDays: 7 },
+    dpsk: { ...h.vsz.config, port, ssid: 'Guest', guestVlanId: 50, maxGuestDays: 7 },
     admin: { emails: ['it@school.org'] },
     policy: { rules: [{ name: 'Staff', orgUnit: '/Staff', vlanId: 20 }], default: { vlanId: 30 } },
     ...extra,
