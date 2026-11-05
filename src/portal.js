@@ -107,8 +107,7 @@ ${error ? `<p class="error" role="alert">${e(error)}</p>` : ''}
   <label for="password">Password</label>
   <input id="password" name="password" type="password" autocomplete="current-password" required>
   <button type="submit">Connect</button>
-</form>
-<p class="hint">Only approved Google Workspace accounts can use this platform.</p>`));
+</form>`));
   }
 
   function messagePage(res, status, title, text) {

@@ -232,6 +232,3 @@ button[disabled] { opacity: 0.7; cursor: progress; }
   .card { max-width: 1000px; min-height: 580px; }
   .content { padding: 64px 72px; }
 }
-
-/* ---------- The hint under the sign-in form ---------- */
-.hint { margin: 16px 0 0; text-align: center; color: var(--muted); font-size: 0.875rem; }
