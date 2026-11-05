@@ -96,7 +96,7 @@ export function ldapSearch({ host, port = 636, cert, key, baseDn, email, identit
 
 // --- The checks.
 
-export function createChecks({ config, directory, mailer, vsz, nbi = null, drive = null, radiusStatus = () => null, ldap = ldapSearch }) {
+export function createChecks({ config, directory, mailer, vsz, nbi = null, drive = null, radiusStatus = () => null, browsingStatus = () => null, ldap = ldapSearch }) {
   const adminEmail = config.google.directory?.adminEmail;
   const domain = config.radius.defaultDomain;
   const ldapConf = {
@@ -186,6 +186,27 @@ export function createChecks({ config, directory, mailer, vsz, nbi = null, drive
     const r = radiusStatus();
     if (!r?.lastRequest) results.push({ name: 'FreeRADIUS', ok: null, detail: 'no login has reached the platform yet: join a sign-in network with a phone' });
     else results.push({ name: 'FreeRADIUS', ok: true, detail: `last login request ${Math.round((Date.now() - r.lastRequest) / 60_000)} min ago` });
+
+    if (config.browsing.enabled) {
+      const b = browsingStatus() ?? {};
+      const mins = (t) => Math.round((Date.now() - t) / 60_000);
+      if (!b.lastMessage) {
+        results.push({
+          name: 'Firewall logs (sites visited)',
+          ok: null,
+          detail: b.refused
+            ? `nothing accepted yet: logs came from ${b.lastRefusedFrom}, which isn't in browsing.allowFrom`
+            : `nothing received yet on port ${config.browsing.listen.port}: set up syslog on the firewall`,
+        });
+      } else {
+        const share = b.matched + b.unmatched ? Math.round((100 * b.matched) / (b.matched + b.unmatched)) : 0;
+        results.push({
+          name: 'Firewall logs (sites visited)',
+          ok: mins(b.lastMessage) < 30,
+          detail: `last log ${mins(b.lastMessage)} min ago; ${b.matched} visits matched to people, ${b.unmatched} from devices not signed in (${share}% matched)${b.lastMatched ? '' : ". None matched yet: the addresses in the logs don't belong to any signed-in device (is the firewall logging the WiFi VLANs?)"}`,
+        });
+      }
+    }
 
     return results;
   }

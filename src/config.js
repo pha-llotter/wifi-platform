@@ -137,6 +137,22 @@ export function normalizeConfig(raw) {
   c.admin = { emails: [], allowFrom: [], ...c.admin };
   c.admin.emails = c.admin.emails.map((e) => String(e).toLowerCase());
   need(Array.isArray(c.admin.allowFrom), 'admin.allowFrom must be a list of IP addresses or CIDR ranges');
+  // Sites visited per person, from the school firewall's syslog (browsing.js). Off by default.
+  c.browsing = { enabled: false, allowFrom: [], retentionDays: 30, vlans: [], viewers: [], ...c.browsing };
+  c.browsing.listen = { host: '0.0.0.0', port: 5514, ...c.browsing.listen };
+  if (c.browsing.enabled) {
+    need(Array.isArray(c.browsing.allowFrom) && c.browsing.allowFrom.length > 0,
+      "browsing.allowFrom must list the address the firewall's logs come from (the school's public IP), so no one else can send fake ones");
+    need(Number.isInteger(c.browsing.listen.port) && c.browsing.listen.port >= 0 && c.browsing.listen.port < 65536,
+      'browsing.listen.port must be a port number, e.g. 5514');
+    need(Number.isInteger(c.browsing.retentionDays) && c.browsing.retentionDays >= 1 && c.browsing.retentionDays <= 365,
+      'browsing.retentionDays must be from 1 to 365');
+    need(Array.isArray(c.browsing.vlans) && c.browsing.vlans.every((v) => Number.isInteger(v)),
+      'browsing.vlans must be a list of VLAN numbers to record, e.g. [10] for learners only, or [] for everyone');
+    need(Array.isArray(c.browsing.viewers), 'browsing.viewers must be a list of admin emails, or [] for every admin');
+  }
+  c.browsing.viewers = (Array.isArray(c.browsing.viewers) ? c.browsing.viewers : []).map((e) => String(e).toLowerCase());
+
   c.database ??= 'data/wifi-portal.db';
   c.backup.dir ??= path.join(path.dirname(path.resolve(c.database)), 'backups');
   c.retentionDays ??= 90;

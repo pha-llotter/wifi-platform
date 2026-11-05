@@ -80,6 +80,8 @@ function readJson(req, limit = 1_000_000) {
 }
 
 export function createAdmin({ config, db, settings, keys, access, platform = null, log, oauth = google }) {
+  // Sites visited (browsing.js) are shown only to the admins in browsing.viewers, or to every admin when that's empty.
+  const canSeeSites = (email) => config.browsing.enabled && (!config.browsing.viewers.length || config.browsing.viewers.includes(email));
   const enabled = config.admin.emails.length > 0;
   const adminDomains = [...new Set(config.admin.emails.map((e) => e.split('@')[1]))];
   const secure = config.publicUrl.startsWith('https://');
@@ -337,8 +339,8 @@ export function createAdmin({ config, db, settings, keys, access, platform = nul
   </ul></section>
 
   <section class="guide-privacy"><h2>What the school records</h2>
-    <p>To keep the network safe and working, the WiFi system records your <strong>school email</strong>, your device's <strong>network address (MAC)</strong>, <strong>when</strong> and <strong>where</strong> (which access point) you connected, and <strong>how much data</strong> you used. It does <strong>not</strong> record which websites you visit or what you do online. Your password goes straight to Google to be checked and is never stored.</p>
-    <p>These records are deleted automatically after <strong>${e(days)} days</strong>, are seen only by the school's IT administrators, and are used only to run the WiFi, solve problems and keep use fair. This follows the Protection of Personal Information Act (POPIA) and the school's ICT policy.${contact ? ` Questions: <strong>${e(contact)}</strong>.` : ''}</p>
+    <p>To keep the network safe and working, the WiFi system records your <strong>school email</strong>, your device's <strong>network address (MAC)</strong>, <strong>when</strong> and <strong>where</strong> (which access point) you connected, and <strong>how much data</strong> you used. ${config.browsing.enabled ? "It also records <strong>which websites you visit</strong>: the site's name and when (for example youtube.com at 10:42), not the pages you open or what you type." : "It does <strong>not</strong> record which websites you visit or what you do online."} Your password goes straight to Google to be checked and is never stored.</p>
+    <p>These records are deleted automatically after <strong>${e(days)} days</strong>${config.browsing.enabled ? ` (websites after <strong>${e(config.browsing.retentionDays)} days</strong>)` : ''}, are seen only by the school's IT administrators, and are used only to run the WiFi, solve problems and keep use fair. This follows the Protection of Personal Information Act (POPIA) and the school's ICT policy.${contact ? ` Questions: <strong>${e(contact)}</strong>.` : ''}</p>
   </section>
 </article>
 <script src="/admin/print.js"></script></body></html>`,
@@ -367,6 +369,7 @@ export function createAdmin({ config, db, settings, keys, access, platform = nul
           guestVlanId: config.dpsk.guestVlanId,
           maxGuestDays: config.dpsk.maxGuestDays,
           directory: Boolean(config.google.directory?.enabled),
+          browsing: { enabled: config.browsing.enabled, canView: canSeeSites(s.email), retentionDays: config.browsing.retentionDays },
         });
       }
       if (route === '/overview') {
@@ -393,6 +396,25 @@ export function createAdmin({ config, db, settings, keys, access, platform = nul
         return json(res, 200, db.events({ category: q.get('category') || null, q: q.get('q') || null, before, limit: 50 }));
       }
       if (route === '/people') return json(res, 200, { people: db.people({ q: q.get('q') || null }), blocked: db.blockedList() });
+      const sites = route.match(/^\/people\/([^/]+)\/sites$/);
+      if (sites) {
+        const email = decodeURIComponent(sites[1]).toLowerCase();
+        if (!EMAIL_RE.test(email)) return json(res, 400, { problems: ['Not an email address'] });
+        if (!canSeeSites(s.email)) return json(res, 403, { problems: ['Only the admins in browsing.viewers can see sites visited.'] });
+        const days = db.browsingDays(email);
+        const day = /^\d{4}-\d{2}-\d{2}$/.test(q.get('day') ?? '') ? q.get('day') : (days[0] ?? dayOf(now));
+        const from = new Date(`${day}T00:00:00`).getTime();
+        // Who looked at whose browsing, and for which day, goes in the audit log.
+        audit('viewed sites visited', { email, day });
+        return json(res, 200, { email, day, days, sites: db.personSites(email, from, from + 86_400_000), retentionDays: config.browsing.retentionDays });
+      }
+      if (route === '/sites') {
+        if (!canSeeSites(s.email)) return json(res, 403, { problems: ['Only the admins in browsing.viewers can see sites visited.'] });
+        const days = { today: 1, week: 7, month: 30 }[q.get('period')] ?? 1;
+        const start = new Date(now);
+        start.setHours(0, 0, 0, 0);
+        return json(res, 200, { top: db.topSites(start.getTime() - (days - 1) * 86_400_000, now + 3_600_000, 50), collector: platform?.status().browsing ?? null });
+      }
       if (route.startsWith('/people/')) {
         const email = decodeURIComponent(route.slice('/people/'.length));
         if (!EMAIL_RE.test(email)) return json(res, 400, { problems: ['Not an email address'] });
