@@ -165,7 +165,7 @@ describe('the sign-in page', () => {
     h.db.block('t.smith@school.org', 'Sharing the password <with others>', 'it@school.org');
     h.access.forget();
     const r = await signIn('Nexus Staff', 't.smith@school.org', 'staff-pass');
-    assert.match(r.html, /This account is blocked from the school WiFi\. Reason: Sharing the password &lt;with others&gt;/);
+    assert.match(r.html, /This account is blocked! Reason: Sharing the password &lt;with others&gt;/);
     assert.equal(h.nbiCalls.length, 0);
     const wrong = await signIn('Nexus Staff', 't.smith@school.org', 'nope');
     assert.doesNotMatch(wrong.html, /blocked/, 'nothing is said about a block without the right password');
@@ -175,7 +175,7 @@ describe('the sign-in page', () => {
     h.db.block('t.smith@school.org', '', 'it@school.org');
     h.access.forget();
     const r = await signIn('Nexus Staff', 't.smith@school.org', 'staff-pass');
-    assert.match(r.html, /This account is blocked from the school WiFi\.<\/p>/);
+    assert.match(r.html, /This account is blocked!<\/p>/);
   });
 
   test('a student on the staff network is pointed to the right one, after the password checks out', async () => {
