@@ -17,6 +17,8 @@ People join **PHA-WiFi** with their **school Google username and password**. The
 - **Data used per person.** The vSZ reports each session's bytes through RADIUS accounting, so the dashboard shows who's online and how much each person and device used. It shows the amount only, not which sites.
 - **The admin dashboard** (`https://wifi.phahs.org.za/admin`, PHA design) shows who logged in from which device and VLAN, who was turned away and why, data used, the rules, blocks, guest keys, health, backups and alerts.
 
+A step-by-step setup guide for the Linux server and the Ruckus vSZ is in [docs/PHA-WiFi-setup-guide.pdf](docs/PHA-WiFi-setup-guide.pdf) (source: [docs/setup-guide.html](docs/setup-guide.html)).
+
 ## The parts
 
 | Part | Runs | Does |
@@ -98,7 +100,7 @@ sudo chown root:root radius.env && sudo chmod 600 radius.env
 - **Shared token:** generate one with `openssl rand -hex 32` and put it in both `radius.apiToken` (config.json) and `PLATFORM_TOKEN` (radius.env).
 - **RADIUS secret:** generate a second one the same way for `RADIUS_SECRET`, and set the same secret on the vSZ RADIUS service.
 - **VSZ_ADDRESS:** set it to the school's public IP.
-- **PHA-Guest settings:** run `docker compose run --rm wifi-portal node scripts/vsz-wlans.js /etc/wifi-portal/config.json` for `dpsk.zoneId` and `dpsk.wlanId`, and `… scripts/vsz-fingerprint.js …` for `dpsk.tlsFingerprint`. The platform won't start without the fingerprint, because the vSZ API password crosses the internet. Compare it with the certificate shown in the vSZ web console (padlock → certificate → SHA-256) before trusting it.
+- **PHA-Guest settings:** first run `docker compose run --rm wifi-portal node scripts/vsz-fingerprint.js /etc/wifi-portal/config.json` for `dpsk.tlsFingerprint`, then `… scripts/vsz-wlans.js …` for `dpsk.zoneId` and `dpsk.wlanId` (the WLAN list won't connect while the fingerprint is still the placeholder). The platform won't start without the fingerprint, because the vSZ API password crosses the internet. Compare it with the certificate shown in the vSZ web console (padlock → certificate → SHA-256) before trusting it.
 
 Then start everything:
 
@@ -122,9 +124,9 @@ Caddy gets both certificates within a minute. FreeRADIUS restarts once a day, wh
 
 | Device | How |
 |---|---|
-| **iPhone, iPad, Mac** | Install the setup profile: run `docker compose run --rm wifi-portal node scripts/apple-profile.js /etc/wifi-portal/config.json /etc/wifi-portal/PHA-WiFi.mobileconfig` and share the file by **email or AirDrop**. Opening it installs PHA-WiFi and asks for the email and password once. Without the profile, Apple devices send the password in a form Google can't check, so they won't connect. |
+| **iPhone, iPad, Mac** | Install the setup profile: run `docker compose run --rm wifi-portal node scripts/apple-profile.js /etc/wifi-portal/config.json /var/lib/wifi-portal/PHA-WiFi.mobileconfig` (the container can't write to `/etc/wifi-portal`) and share the file by **email or AirDrop**. Opening it installs PHA-WiFi and asks for the email and password once. Without the profile, Apple devices send the password in a form Google can't check, so they won't connect. |
 | **Android** | WiFi → PHA-WiFi → EAP method **TTLS**, Phase 2 **PAP**, CA certificate **Use system certificates**, Domain **radius.phahs.org.za** (required), Identity: school email, Password. Leave anonymous identity empty. |
-| **Windows 10/11** | Install the WiFi profile: run `docker compose run --rm wifi-portal node scripts/windows-profile.js /etc/wifi-portal/config.json /etc/wifi-portal/PHA-WiFi.xml`, then on each laptop `netsh wlan add profile filename="PHA-WiFi.xml" user=all` (or deploy it with Intune or Group Policy). Connect and enter the email and password once. |
+| **Windows 10/11** | Install the WiFi profile: run `docker compose run --rm wifi-portal node scripts/windows-profile.js /etc/wifi-portal/config.json /var/lib/wifi-portal/PHA-WiFi.xml`, then on each laptop `netsh wlan add profile filename="PHA-WiFi.xml" user=all` (or deploy it with Intune or Group Policy). Connect and enter the email and password once. |
 | **Chromebook** | WiFi → PHA-WiFi → EAP method **EAP-TTLS**, Phase 2 **PAP**, Server CA **Default**, Subject match / Domain **radius.phahs.org.za**, Identity and password. For managed Chromebooks, push the same settings from the Admin console (**Devices → Networks → Wi-Fi**). |
 
 **Always set devices up this way, never by hand.** Inside the encrypted tunnel the password is sent as is (PAP, because Google can only check plain passwords). That's safe only when the device checks it is talking to `radius.phahs.org.za`. A device set up by hand, especially Windows ("Continue connecting?"), will hand the password to a fake access point with the same name. The profiles and the Android/Chromebook **Domain** setting prevent that. Turning on **2-Step Verification** for staff limits the damage if a password does leak.
@@ -160,7 +162,7 @@ Rules are checked from top to bottom, and the first match wins. A rule matches o
 | **Rules** | Allowed domains, plus rules from org unit to VLAN. |
 | **Settings** | Name, the **daily usage alert** level, record retention, platform facts, and tools: check connections, the printable **connection guide**, back up now, adopt keys from the vSZ, export usage, logins and keys as CSV. |
 
-Everything is kept in `/var/lib/wifi-portal/wifi-portal.db`, with a copy every night in `backups/`; the last 14 are kept. With `backup.drive` set, each copy also goes to Google Drive. To restore one: stop the platform, copy it over `wifi-portal.db` (gunzip a Drive copy first), start it again, then use **Settings → Adopt keys** for guest keys made since.
+Everything is kept in `/var/lib/wifi-portal/wifi-portal.db`, with a copy every night in `backups/`; the last 14 are kept. With `backup.drive` set, each copy also goes to Google Drive. To restore one: stop the platform, move `wifi-portal.db` and its `-wal` and `-shm` files aside, copy the backup in as `wifi-portal.db` (gunzip a Drive copy first) owned by uid 1000, start it again, then use **Settings → Adopt keys** for guest keys made since.
 
 **Connection guide:** **Settings → Connection guide** opens a one-page guide for staff and learners, filled in from the config: how to connect each kind of device, what to do if it fails, and what the school records about WiFi use, for POPIA. Print it, or save it as PDF for the website or newsletter. Check the privacy wording against the school's ICT policy first.
 
