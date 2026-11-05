@@ -80,7 +80,7 @@ Firewall:
 ### 4. Install
 
 ```bash
-git clone <this repo> /opt/wifi-portal && cd /opt/wifi-portal
+git clone https://github.com/pha-llotter/wifi-platform.git /opt/wifi-portal && cd /opt/wifi-portal
 sudo mkdir -p /etc/wifi-portal/google-ldap /var/log/wifi-portal /var/lib/wifi-portal
 sudo cp config.example.json /etc/wifi-portal/config.json               # fill in
 sudo cp deploy/freeradius/radius.env.example /etc/wifi-portal/radius.env  # fill in

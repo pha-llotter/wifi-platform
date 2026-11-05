@@ -295,13 +295,13 @@ td.k code { white-space: nowrap; }
   <ol class="toc">
     <li><span class="n">1</span><span class="t">Plan</span><span class="d">What to collect and decide first</span><span class="p">3</span></li>
     <li><span class="n">2</span><span class="t">Prepare the Linux server</span><span class="d">Ubuntu, SSH, firewall, Docker, the code</span><span class="p">4</span></li>
-    <li><span class="n">3</span><span class="t">Google Workspace</span><span class="d">Secure LDAP, admin sign-in, directory, alerts</span><span class="p">7</span></li>
-    <li><span class="n">4</span><span class="t">Ruckus vSZ</span><span class="d">RADIUS services, both WLANs, API account, school firewall</span><span class="p">9</span></li>
-    <li><span class="n">5</span><span class="t">Finish the server and test</span><span class="d">Settings, secrets, start, a real login</span><span class="p">12</span></li>
-    <li><span class="n">6</span><span class="t">Devices and the pilot</span><span class="d">Setting up each kind of device, the go-live checklist</span><span class="p">15</span></li>
-    <li><span class="n">7</span><span class="t">Looking after it</span><span class="d">Updates, backups, restores, renewals</span><span class="p">17</span></li>
-    <li><span class="n">8</span><span class="t">When something doesn't work</span><span class="d">Symptoms, causes and fixes</span><span class="p">19</span></li>
-    <li><span class="n">A</span><span class="t">Ports and files</span><span class="d">Quick reference</span><span class="p">21</span></li>
+    <li><span class="n">3</span><span class="t">Google Workspace</span><span class="d">Secure LDAP, admin sign-in, directory, alerts</span><span class="p">6</span></li>
+    <li><span class="n">4</span><span class="t">Ruckus vSZ</span><span class="d">RADIUS services, both WLANs, API account, school firewall</span><span class="p">8</span></li>
+    <li><span class="n">5</span><span class="t">Finish the server and test</span><span class="d">Settings, secrets, start, a real login</span><span class="p">11</span></li>
+    <li><span class="n">6</span><span class="t">Devices and the pilot</span><span class="d">Setting up each kind of device, the go-live checklist</span><span class="p">14</span></li>
+    <li><span class="n">7</span><span class="t">Looking after it</span><span class="d">Updates, backups, restores, renewals</span><span class="p">16</span></li>
+    <li><span class="n">8</span><span class="t">When something doesn't work</span><span class="d">Symptoms, causes and fixes</span><span class="p">18</span></li>
+    <li><span class="n">A</span><span class="t">Ports and files</span><span class="d">Quick reference</span><span class="p">20</span></li>
   </ol>
 
   <div class="note keep">
@@ -440,21 +440,11 @@ sudo ufw status verbose</pre>
   </ul>
 
   <h2><span class="num">2.5</span>Get the code onto the server</h2>
-  <p>The code lives in <code>/opt/wifi-portal</code>. Use option A once the code is in a private GitHub repo, or option B to copy it straight from the PC it's on now.</p>
-  <h3>Option A: from a private GitHub repo</h3>
-  <p class="where">On the server</p>
-<pre>ssh-keygen -t ed25519 -f ~/.ssh/wifi-portal-deploy -N ""
-cat ~/.ssh/wifi-portal-deploy.pub     <span class="c"># GitHub: the repo → Settings → Deploy keys → Add (read-only)</span>
-sudo mkdir /opt/wifi-portal &amp;&amp; sudo chown $USER: /opt/wifi-portal
-GIT_SSH_COMMAND="ssh -i ~/.ssh/wifi-portal-deploy" git clone git@github.com:<var>OWNER</var>/wifi-portal.git /opt/wifi-portal
-git -C /opt/wifi-portal config core.sshCommand "ssh -i ~/.ssh/wifi-portal-deploy"</pre>
-  <h3>Option B: copied from your PC as a Git bundle</h3>
-  <p class="where">On your PC, in the wifi-portal folder (PowerShell)</p>
-<pre>git bundle create wifi-portal.bundle --all
-scp wifi-portal.bundle itadmin@<var>SERVER_IP</var>:~</pre>
+  <p>The code is public on GitHub at <code>github.com/pha-llotter/wifi-platform</code>, so the server can download it without a key or password. It lives in <code>/opt/wifi-portal</code>.</p>
   <p class="where">On the server</p>
 <pre>sudo mkdir /opt/wifi-portal &amp;&amp; sudo chown $USER: /opt/wifi-portal
-git clone ~/wifi-portal.bundle /opt/wifi-portal</pre>
+git clone https://github.com/pha-llotter/wifi-platform.git /opt/wifi-portal</pre>
+  <p class="small">The repo holds only code and examples. Every real setting and secret lives in <code>/etc/wifi-portal</code> on the server and never goes into Git.</p>
 
   <h2><span class="num">2.6</span>Settings folders and the two secrets</h2>
 <pre>sudo mkdir -p /etc/wifi-portal/google-ldap /var/log/wifi-portal /var/lib/wifi-portal
@@ -809,8 +799,7 @@ sudo cp /var/lib/wifi-portal/Nexus.* ~ &amp;&amp; sudo chown $USER ~/Nexus.*</pr
 
   <h2><span class="num">7.1</span>Updating the platform</h2>
   <p>After school, from <code>/opt/wifi-portal</code>:</p>
-<pre>git pull                                     <span class="c"># option A (GitHub)</span>
-git pull ~/wifi-portal.bundle main           <span class="c"># option B: copy a new bundle over first</span>
+<pre>git pull
 sudo docker compose up -d --build
 sudo docker compose ps</pre>
   <p>Only containers whose code changed are restarted. Connected devices stay connected while the platform restarts.</p>
@@ -827,7 +816,7 @@ sudo docker compose ps</pre>
     <tbody>
       <tr><td class="k">The database: logins, people, usage, guest keys, rules</td><td>Copied every night to <code>/var/lib/wifi-portal/backups/</code> (the last 14), and to the Drive folder if set up (the last 30, gzipped).</td></tr>
       <tr><td class="k">Settings and secrets in <code>/etc/wifi-portal</code></td><td><strong>Not backed up automatically.</strong> Make a copy after setup and after each change, as below.</td></tr>
-      <tr><td class="k">The code</td><td>In Git: GitHub, or your PC.</td></tr>
+      <tr><td class="k">The code</td><td>On GitHub: <code>github.com/pha-llotter/wifi-platform</code></td></tr>
       <tr><td class="k">Let's Encrypt certificates</td><td>Not needed: Caddy gets new ones by itself.</td></tr>
     </tbody>
   </table>
