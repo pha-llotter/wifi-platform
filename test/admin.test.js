@@ -120,6 +120,22 @@ describe('admin network restriction', () => {
 });
 
 describe('records', () => {
+  test('last seen follows usage reports while a device stays connected, not just its login', () => {
+    const db = openDb(':memory:');
+    const login = Date.now() - 5 * 3600_000;
+    db.recordLogin({ email: 'a@school.org', mac: 'aa:aa:aa:aa:aa:aa' }, login);
+    assert.equal(db.people()[0].last, login);
+    assert.equal(db.people()[0].online, 0);
+    const report = Date.now() - 60_000;
+    db.recordAccounting({ status: 'Interim-Update', sessionId: 's1', who: 'a@school.org', mac: 'aa:aa:aa:aa:aa:aa', down: 10, up: 1 }, report);
+    db.recordAccounting({ status: 'Interim-Update', sessionId: 's2', who: 'guest: Mrs Botha (it@school.org)', mac: 'bb:bb:bb:bb:bb:bb', down: 1, up: 1 }, report);
+    const people = db.people();
+    assert.deepEqual(people.map((p) => p.email), ['a@school.org'], 'guest keys are not people');
+    assert.equal(people[0].last, report);
+    assert.equal(people[0].online, 1);
+    db.close();
+  });
+
   test('old events and device records are purged', () => {
     const db = openDb(':memory:');
     const old = Date.now() - 10 * 86_400_000;

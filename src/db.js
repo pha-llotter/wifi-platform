@@ -279,22 +279,28 @@ export function openDb(file) {
       .map(parse);
   }
 
-  /** Everyone who has logged in or been turned away. */
-  function people({ q: search = null, limit = 100 } = {}) {
+  /**
+   * Everyone who has logged in or been turned away. Last seen also counts the vSZ's
+   * usage reports, which arrive every few minutes while a device stays connected; a
+   * login alone happens only once a session (12 hours).
+   */
+  function people({ q: search = null, limit = 100, onlineSince = Date.now() - 30 * 60_000 } = {}) {
     const like = search ? `%${search.toLowerCase()}%` : null;
     return q(`WITH everyone AS (
         SELECT email, last AS time FROM logins
         UNION ALL SELECT email, time FROM events WHERE email IS NOT NULL AND category IN ('signin', 'denied')
+        UNION ALL SELECT who, updated FROM sessions WHERE who IN (SELECT email FROM logins)
       )
       SELECT p.email,
         MAX(p.time) AS last,
+        EXISTS (SELECT 1 FROM sessions s WHERE s.who = p.email AND s.stopped IS NULL AND s.updated > ?) AS online,
         (SELECT COUNT(*) FROM logins l WHERE l.email = p.email) AS devices,
         (SELECT COALESCE(SUM(count), 0) FROM logins l WHERE l.email = p.email) AS logins,
         (SELECT COUNT(*) FROM events e WHERE e.email = p.email AND e.category = 'denied') AS denied,
         EXISTS (SELECT 1 FROM blocked b WHERE b.email = p.email) AS blocked
       FROM everyone p
       WHERE (? IS NULL OR p.email LIKE ? OR EXISTS (SELECT 1 FROM logins l WHERE l.email = p.email AND l.mac LIKE ?))
-      GROUP BY p.email ORDER BY last DESC LIMIT ?`).all(like, like, like, Math.min(limit, 500));
+      GROUP BY p.email ORDER BY last DESC LIMIT ?`).all(onlineSince, like, like, like, Math.min(limit, 500));
   }
 
   function person(email) {

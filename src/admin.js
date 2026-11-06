@@ -397,7 +397,10 @@ export function createAdmin({ config, db, settings, keys, access, platform = nul
         const before = q.get('before') ? Number(q.get('before')) : null;
         return json(res, 200, db.events({ category: q.get('category') || null, q: q.get('q') || null, before, limit: 50 }));
       }
-      if (route === '/people') return json(res, 200, { people: db.people({ q: q.get('q') || null }), blocked: db.blockedList() });
+      if (route === '/people') {
+        const onlineSince = now - config.radius.accountingStaleMinutes * 60_000;
+        return json(res, 200, { people: db.people({ q: q.get('q') || null, onlineSince }), blocked: db.blockedList() });
+      }
       if (route.startsWith('/people/')) {
         const email = decodeURIComponent(route.slice('/people/'.length));
         if (!EMAIL_RE.test(email)) return json(res, 400, { problems: ['Not an email address'] });

@@ -498,7 +498,7 @@ async function people() {
           .map(
             (p) => `<tr>
             <td>${personLink(p.email)}</td>
-            <td>${when(p.last)}</td>
+            <td>${p.online ? `${badge('ok', 'Online')} ` : ''}${when(p.last)}</td>
             <td class="num">${num(p.devices)}</td>
             <td class="num">${num(p.logins)}</td>
             <td class="num">${num(p.denied)}</td>
