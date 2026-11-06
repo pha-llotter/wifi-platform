@@ -141,7 +141,7 @@ function eventDetail(e) {
     case 'usage_high':
       return `${d.gb} GB today, over the ${d.limitGb} GB alert level`;
     case 'key_issued':
-      return `Guest key for “${d.label}” · ${v(d.vlanId)} · until ${fullDate(d.expires)} · by ${d.by}`;
+      return `Guest key for “${d.label}”${d.shared ? ' (several devices)' : ''} · ${v(d.vlanId)} · until ${fullDate(d.expires)} · by ${d.by}`;
     case 'key_revoked':
     case 'key_missing':
       return [d.label && `“${d.label}”`, d.reason, d.by && `by ${d.by}`].filter(Boolean).join(' · ');
@@ -224,13 +224,13 @@ function keysTable(rows, { empty }) {
       (k) => `<tr>
       <td>${h(k.label)}</td>
       <td>${vlan(k.vlan_id)}</td>
-      <td class="mono">${k.mac ? h(k.mac) : '<span class="faint">Not used yet</span>'}</td>
+      <td class="mono">${k.shared ? '<span class="badge">Several devices</span>' : k.mac ? h(k.mac) : '<span class="faint">Not used yet</span>'}</td>
       <td>${when(k.expires)}</td>
       <td>${dash(k.created_by)}</td>
       <td>${when(k.created)}</td>
       <td class="num"><div class="row-actions">
         <a class="btn btn-sm" href="/admin/print?ids=${encodeURIComponent(k.id)}" target="_blank" rel="noopener">Slip</a>
-        ${k.mac ? `<button class="btn btn-sm" data-reset="${h(k.id)}" data-label="${h(k.label)}">Reset</button>` : ''}
+        ${k.mac && !k.shared ? `<button class="btn btn-sm" data-reset="${h(k.id)}" data-label="${h(k.label)}">Reset</button>` : ''}
         <button class="btn btn-sm btn-danger" data-revoke="${h(k.id)}" data-label="${h(k.label)}">End</button>
       </div></td>
     </tr>`,
@@ -282,16 +282,18 @@ function healthChecks(hl) {
 
   if (!hl.directory) items.push(['warn', 'Directory lookup is off', 'Org-unit rules and suspended-account checks need it. Turn on google.directory in config.json.']);
 
+  // A failure an admin has acknowledged is hidden; one that happens again shows again.
+  const fresh = (t) => !hl.acknowledgedAt || t > hl.acknowledgedAt;
   const v = hl.vsz;
-  if (v.lastError && (!v.lastOk || v.lastErrorAt > v.lastOk)) items.push(['bad', "The vSZ API isn't answering", `${v.lastError} (${ago(v.lastErrorAt)}). Guest keys can't be made or removed.`]);
+  if (v.lastError && (!v.lastOk || v.lastErrorAt > v.lastOk) && fresh(v.lastErrorAt)) items.push(['bad', "The vSZ API isn't answering", `${v.lastError} (${ago(v.lastErrorAt)}). Guest keys can't be made or removed.`]);
   else if (v.lastOk) items.push(['ok', 'The vSZ API is answering', `For guest SSID keys. Last call ${ago(v.lastOk)}.`]);
   if (v.security === 'unverified') items.push(['warn', "The vSZ certificate isn't checked", 'Run npm run vsz:fingerprint and set dpsk.tlsFingerprint.']);
 
   const b = hl.backup;
-  if (b?.error) items.push(['bad', 'The last backup failed', `${b.error} (${ago(b.at)})`]);
-  else if (b) items.push(['ok', `Backed up ${ago(b.at)}`, `${String(b.file).split(/[\\/]/).pop()}, ${Math.round(b.size / 1024)} KB.`]);
-  if (b?.offsite?.error) items.push(['bad', "The backup couldn't be copied to Google Drive", `${b.offsite.error} (${ago(b.offsite.at)}). The copy on the server is fine.`]);
-  else if (b?.offsite?.name) items.push(['ok', 'Copied to Google Drive', `${b.offsite.name}, ${Math.round(b.offsite.size / 1024)} KB, ${ago(b.offsite.at)}.`]);
+  if (b?.error && fresh(b.at)) items.push(['bad', 'The last backup failed', `${b.error} (${ago(b.at)})`]);
+  else if (b && !b.error) items.push(['ok', `Backed up ${ago(b.at)}`, `${String(b.file).split(/[\\/]/).pop()}, ${Math.round(b.size / 1024)} KB.`]);
+  if (b?.offsite?.error && fresh(b.offsite.at)) items.push(['bad', "The backup couldn't be copied to Google Drive", `${b.offsite.error} (${ago(b.offsite.at)}). The copy on the server is fine.`]);
+  else if (b?.offsite?.name && !b.offsite.error) items.push(['ok', 'Copied to Google Drive', `${b.offsite.name}, ${Math.round(b.offsite.size / 1024)} KB, ${ago(b.offsite.at)}.`]);
   if (hl.alerts && !hl.alerts.enabled) items.push(['warn', 'Email alerts are off', 'Set alerts.from and alerts.to in config.json so IT hears about problems straight away.']);
 
   const latest = hl.recentErrors[0];
@@ -312,6 +314,7 @@ async function overview() {
   const d = await api('/overview');
   if (!location.hash.match(/^(#overview)?$/)) return;
   const t = d.today;
+  const checks = healthChecks(d.health);
   view.innerHTML = `
   <div class="page-head">
     <div><h1>Overview</h1><p class="muted">Today on ${h(me.schoolSsid)} and ${h(me.guestSsid)} · updates every 30 seconds</p></div>
@@ -324,13 +327,34 @@ async function overview() {
     ${kpi('Problems in 24 hours', d.errors24h, d.errors24h ? badge('bad', 'Needs a look') : badge('ok', 'All clear'))}
   </div>
   <div class="stack">
-    <section class="panel"><div class="panel-head"><h2>Health</h2></div><ul class="checks">${healthChecks(d.health)}</ul></section>
+    <section class="panel"><div class="panel-head"><div><h2>Health</h2>${
+      d.acknowledged ? `<p class="muted">Problems up to ${h(when(d.acknowledged.at))} acknowledged by ${h(d.acknowledged.by)}. They're still in Activity.</p>` : ''
+    }</div>${
+      checks.includes('class="icon bad"') || d.errors24h
+        ? '<div class="actions"><button class="btn" id="ack-problems" type="button">Acknowledge all</button></div>'
+        : ''
+    }</div><ul class="checks">${checks}</ul></section>
     <section class="panel">
       <div class="panel-head"><div><h2>Latest logins</h2><p class="muted">Devices that logged in to ${h(me.schoolSsid)} most recently</p></div></div>
       ${devicesTable(d.recentLogins)}
     </section>
   </div>`;
   $('#refresh').onclick = () => overview().then(() => toast('Up to date'));
+  const ackBtn = $('#ack-problems');
+  if (ackBtn) {
+    ackBtn.onclick = async () => {
+      ackBtn.disabled = true;
+      try {
+        await api('/problems/acknowledge', { method: 'POST', body: {} });
+        clearTimeout(refreshTimer);
+        await overview();
+        toast('Problems acknowledged. New ones will show again.');
+      } catch (err) {
+        ackBtn.disabled = false;
+        toast(err.message);
+      }
+    };
+  }
   refreshTimer = setTimeout(overview, 30_000);
 }
 
@@ -644,13 +668,14 @@ async function usage() {
 async function guests() {
   const rows = await api('/guests');
   view.innerHTML = `
-  <div class="page-head"><div><h1>Guests</h1><p class="muted">Keys for visitors on ${h(me.guestSsid)}${me.guestVlanId ? ` (VLAN ${num(me.guestVlanId)})` : ''}. Each works on one device and ends on its last day.</p></div></div>
+  <div class="page-head"><div><h1>Guests</h1><p class="muted">Keys for visitors on ${h(me.guestSsid)}${me.guestVlanId ? ` (VLAN ${num(me.guestVlanId)})` : ''}. A key works on one device, or on several for a group or event, and ends on its last day.</p></div></div>
   <div class="stack">
     <section class="panel">
       <div class="panel-head"><div><h2>Make a guest key</h2><p class="muted">Opens a slip to print or show the visitor</p></div></div>
       <form class="panel-body field-row" id="guest-form">
         <div class="field"><label for="g-name">Visitor's name</label><input type="text" id="g-name" maxlength="40" placeholder="e.g. Mrs Botha, exam moderator" required></div>
         <div class="field"><label for="g-days">For how many days</label><input type="number" id="g-days" min="1" max="${h(me.maxGuestDays)}" value="1" required></div>
+        <div class="field"><label for="g-shared">Devices</label><select id="g-shared"><option value="one">One device</option><option value="shared">Several devices (a group or event)</option></select></div>
         <div class="field"><span class="label">&nbsp;</span><button class="btn btn-primary" type="submit">Make key and print</button></div>
       </form>
     </section>
@@ -660,7 +685,7 @@ async function guests() {
   $('#guest-form').onsubmit = async (e) => {
     e.preventDefault();
     try {
-      const r = await api('/guests', { method: 'POST', body: { name: $('#g-name').value, days: Number($('#g-days').value) } });
+      const r = await api('/guests', { method: 'POST', body: { name: $('#g-name').value, days: Number($('#g-days').value), shared: $('#g-shared').value === 'shared' } });
       window.open(`/admin/print?ids=${encodeURIComponent(r.id)}`, '_blank', 'noopener');
       guests();
     } catch (err) {

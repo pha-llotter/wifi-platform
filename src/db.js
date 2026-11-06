@@ -156,6 +156,10 @@ export function openDb(file) {
   const db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 3000;');
   db.exec(SCHEMA);
+  // Added 2026-11-06: a guest key for several devices (a Group DPSK on the vSZ).
+  if (!db.prepare('PRAGMA table_info(wifi_keys)').all().some((c) => c.name === 'shared')) {
+    db.exec('ALTER TABLE wifi_keys ADD COLUMN shared INTEGER NOT NULL DEFAULT 0');
+  }
   const q = (sql) => db.prepare(sql);
 
   const insertEvent = q('INSERT INTO events (time, type, category, email, mac, detail) VALUES (?, ?, ?, ?, ?, ?)');
@@ -329,9 +333,9 @@ export function openDb(file) {
     );
   }
 
-  const addKey = ({ id, email, label, vlanId, rule, kind, expires = null, createdBy = null, created = Date.now() }) =>
-    q(`INSERT INTO wifi_keys (id, email, label, vlan_id, rule, created, kind, expires, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, email.toLowerCase(), label || null, vlanId ?? null, rule ?? null, created, kind, expires, createdBy);
+  const addKey = ({ id, email, label, vlanId, rule, kind, expires = null, createdBy = null, created = Date.now(), shared = false }) =>
+    q(`INSERT INTO wifi_keys (id, email, label, vlan_id, rule, created, kind, expires, created_by, shared)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, email.toLowerCase(), label || null, vlanId ?? null, rule ?? null, created, kind, expires, createdBy, shared ? 1 : 0);
   const getKeyRow = (id) => q('SELECT * FROM wifi_keys WHERE id = ?').get(id);
   const keysOfKind = (kind) => q('SELECT * FROM wifi_keys WHERE kind = ? ORDER BY created DESC').all(kind);
   const allKeys = () => q('SELECT * FROM wifi_keys ORDER BY created DESC').all();

@@ -267,13 +267,13 @@ export function createAdmin({ config, db, settings, keys, access, platform = nul
   <div class="slip-body">
     <div class="slip-qr">${qrSvg(wifiQrText({ ssid, passphrase: k.passphrase }), { label: `QR code to join ${ssid}` })}</div>
     <dl>
-      <dt>Guest</dt><dd>${escapeHtml(k.label)}</dd>
+      <dt>${k.shared ? 'For' : 'Guest'}</dt><dd>${escapeHtml(k.label)}</dd>
       <dt>Network</dt><dd>${escapeHtml(ssid)}</dd>
       <dt>Key</dt><dd class="slip-key">${escapeHtml(k.passphrase)}</dd>
       ${k.expires ? `<dt>Works until</dt><dd>${escapeHtml(date(k.expires))}</dd>` : ''}
     </dl>
   </div>
-  <p>Scan the code with the phone's camera, or choose ${escapeHtml(ssid)} in WiFi settings and type the key. It works on one device only: the first one that connects with it.</p>
+  <p>Scan the code with the phone's camera, or choose ${escapeHtml(ssid)} in WiFi settings and type the key. ${k.shared ? 'Everyone in the group can use it, on as many devices as they need.' : 'It works on one device only: the first one that connects with it.'}</p>
 </article>`,
         )
         .join('')}</div>
@@ -372,10 +372,14 @@ export function createAdmin({ config, db, settings, keys, access, platform = nul
       if (route === '/overview') {
         const today = new Date(now);
         today.setHours(0, 0, 0, 0);
+        // Problems an admin has acknowledged stay in Activity but leave the Overview.
+        const ack = db.getSetting('problemsAcknowledged');
+        const ackAt = ack?.at ?? 0;
         return json(res, 200, {
           today: db.counts(today.getTime()),
           keys: db.keyCounts(),
-          errors24h: db.countSince('error', now - 86_400_000),
+          errors24h: db.countSince('error', Math.max(now - 86_400_000, ackAt + 1)),
+          acknowledged: ack ?? null,
           recentLogins: db.recentLogins(25),
           online: db.onlineNow(now, config.radius.accountingStaleMinutes * 60_000).length,
           usageToday: db.usageReport(dayOf(now), dayOf(now), 0).totals,
@@ -383,7 +387,8 @@ export function createAdmin({ config, db, settings, keys, access, platform = nul
             ...keys.status(),
             ...(platform?.status() ?? {}),
             radius: platform?.status().radius ?? null,
-            recentErrors: db.events({ category: 'error', limit: 8 }),
+            recentErrors: db.events({ category: 'error', limit: 8 }).filter((e) => e.time > ackAt),
+            acknowledgedAt: ackAt,
             directory: Boolean(config.google.directory?.enabled),
           },
         });
@@ -413,7 +418,7 @@ export function createAdmin({ config, db, settings, keys, access, platform = nul
       if (route === '/export/keys.csv') {
         audit('exported the key list');
         const rows = db.allKeys().map((k) => ({ ...k, created: new Date(k.created).toISOString(), expires: k.expires ? new Date(k.expires).toISOString() : '' }));
-        return send(res, 200, csv(rows, ['kind', 'email', 'label', 'vlan_id', 'rule', 'mac', 'created', 'expires', 'created_by', 'id']), 'text/csv; charset=utf-8', {
+        return send(res, 200, csv(rows, ['kind', 'email', 'label', 'shared', 'vlan_id', 'rule', 'mac', 'created', 'expires', 'created_by', 'id']), 'text/csv; charset=utf-8', {
           'Content-Disposition': 'attachment; filename="wifi-keys.csv"',
         });
       }
@@ -478,6 +483,7 @@ export function createAdmin({ config, db, settings, keys, access, platform = nul
         const fresh = await keys.reset(decodeURIComponent(kr[1]), { by: s.email });
         return fresh ? json(res, 200, { id: fresh.id }) : json(res, 404, { problems: ['That key no longer exists.'] });
       } catch (err) {
+        if (err instanceof KeyError) return json(res, 422, { problems: [err.message] });
         return json(res, 502, { problems: [`The vSZ didn't reset the key: ${err.message}`] });
       }
     }
@@ -485,7 +491,7 @@ export function createAdmin({ config, db, settings, keys, access, platform = nul
       err instanceof KeyError ? json(res, 422, { problems: [err.message] }) : json(res, 502, { problems: [`The vSZ didn't create the key: ${err.message}`] });
     if (route === '/guests') {
       try {
-        const key = await keys.issueGuest({ name: body.name, days: Number(body.days) }, { by: s.email });
+        const key = await keys.issueGuest({ name: body.name, days: Number(body.days), shared: body.shared === true }, { by: s.email });
         return json(res, 200, { id: key.id });
       } catch (err) {
         return issueFailed(err);
@@ -510,6 +516,12 @@ export function createAdmin({ config, db, settings, keys, access, platform = nul
       } catch (err) {
         return json(res, 500, { problems: [`Backup failed: ${err.message}`] });
       }
+    }
+    if (route === '/problems/acknowledge') {
+      const at = Date.now();
+      db.setSetting('problemsAcknowledged', { at, by: s.email });
+      audit('acknowledged all problems');
+      return json(res, 200, { at, by: s.email });
     }
     if (route === '/sync') {
       try {

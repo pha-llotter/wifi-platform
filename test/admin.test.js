@@ -73,6 +73,29 @@ describe('admin dashboard', () => {
     assert.equal(p.json.devices[0].vlan_id, 35);
   });
 
+  test('acknowledging problems clears them from the overview until a new one happens', async () => {
+    const overview = async () => (await h.req('/admin/api/overview', { cookie: session.cookie })).json;
+    h.db.record('portal_error', { email: 'pupil@school.org', error: 'the vSZ refused the login: Not found' });
+    let o = await overview();
+    assert.ok(o.errors24h >= 1);
+    assert.equal(o.health.recentErrors[0].type, 'portal_error');
+
+    await new Promise((r) => setTimeout(r, 5)); // the acknowledgement is later than the error
+    const ack = await h.api(session, '/problems/acknowledge');
+    assert.match(ack.json.by, /@/);
+    o = await overview();
+    assert.equal(o.errors24h, 0);
+    assert.deepEqual(o.health.recentErrors, []);
+    assert.equal(o.acknowledged.at, ack.json.at);
+    assert.ok(h.db.events({ category: 'error' }).length >= 1, 'still in Activity');
+
+    await new Promise((r) => setTimeout(r, 5));
+    h.db.record('directory_error', { error: 'quota' });
+    o = await overview();
+    assert.equal(o.errors24h, 1);
+    assert.equal(o.health.recentErrors[0].type, 'directory_error');
+  });
+
   test('logout ends the admin session', async () => {
     const { cookie, csrf } = await h.loginAdmin();
     await h.req('/admin/api/logout', { method: 'POST', cookie, csrf, body: {} });

@@ -174,14 +174,28 @@ export function createVszClient({
   return {
     health,
 
-    /** Creates one key; the controller generates the passphrase unless one is given. */
-    async createKey({ userName, vlanId = null, passphrase = null }) {
+    /**
+     * Creates one key; the controller generates the passphrase unless one is given.
+     * group: a Group DPSK, which any number of devices can use, instead of a key that
+     * binds to the first device. The vSZ is asked again what it made, and a key that
+     * came out as a one-device key is deleted rather than handed out as a group key.
+     */
+    async createKey({ userName, vlanId = null, passphrase = null, group = false }) {
       const body = { amount: 1, userName };
       if (vlanId) body.vlanId = vlanId;
       if (passphrase) body.passphraseList = [passphrase];
+      if (group) body.groupDpsk = true;
       const result = await call('POST', `${dpskPath}/batchGenUnbound`, { body });
-      const key = result?.dpskInfoList?.[0];
+      let key = result?.dpskInfoList?.[0];
       if (!key?.id) fail(new VszError('vSZ created no key', 0, result));
+      if (group && key.groupDpsk !== true) {
+        const made = await this.getKey(key.id);
+        if (made?.groupDpsk !== true) {
+          await this.deleteKeys([key.id]).catch(() => {});
+          fail(new VszError("this vSZ made a one-device key instead of a key for several devices (Group DPSK), so it was removed again", 0, made ?? result));
+        }
+        key = { ...key, ...made };
+      }
       return key;
     },
 

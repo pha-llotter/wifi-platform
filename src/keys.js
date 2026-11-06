@@ -40,23 +40,27 @@ export function createKeyService({ config, db, vsz, log }) {
   const cfg = config.dpsk;
 
   async function create(row, vszUserName) {
-    const key = await vsz.createKey({ userName: vszUserName, vlanId: row.vlanId });
+    const key = await vsz.createKey({ userName: vszUserName, vlanId: row.vlanId, group: Boolean(row.shared) });
     db.addKey({ ...row, id: key.id });
     return { ...db.getKeyRow(key.id), passphrase: key.passphrase };
   }
 
-  /** A visitor's key on the guest VLAN that is removed once `days` have passed. */
-  async function issueGuest({ name, days }, { by }) {
+  /**
+   * A visitor's key on the guest VLAN that is removed once `days` have passed. A shared
+   * key (for a group or an event) works on any number of devices; otherwise the key
+   * binds to the first device that uses it.
+   */
+  async function issueGuest({ name, days, shared = false }, { by }) {
     const d = Number(days);
     if (!Number.isInteger(d) || d < 1 || d > cfg.maxGuestDays) throw new KeyError(`Guest keys can last from 1 to ${cfg.maxGuestDays} days.`);
     const guestName = String(name ?? '').trim().slice(0, 40);
-    if (!guestName) throw new KeyError("Enter the guest's name.");
+    if (!guestName) throw new KeyError(shared ? 'Enter a name for the group or event.' : "Enter the guest's name.");
     const expires = Date.now() + d * 86_400_000;
     const key = await create(
-      { email: by, label: guestName, vlanId: cfg.guestVlanId, rule: 'Guest', kind: 'guest', expires, createdBy: by },
+      { email: by, label: guestName, vlanId: cfg.guestVlanId, rule: 'Guest', kind: 'guest', expires, createdBy: by, shared },
       vszGuestName(guestName, by),
     );
-    log('key_issued', { label: guestName, kind: 'guest', vlanId: cfg.guestVlanId, expires, by });
+    log('key_issued', { label: guestName, kind: 'guest', shared: Boolean(shared), vlanId: cfg.guestVlanId, expires, by });
     return key;
   }
 
@@ -70,7 +74,7 @@ export function createKeyService({ config, db, vsz, log }) {
       log('key_missing', { label: row.label, reason: 'deleted on the vSZ' });
       return null;
     }
-    if (key.macAddress && key.macAddress !== row.mac) db.setKeyMac(id, key.macAddress);
+    if (!row.shared && key.macAddress && key.macAddress !== row.mac) db.setKeyMac(id, key.macAddress);
     return { ...db.getKeyRow(id), passphrase: key.passphrase };
   }
 
@@ -78,6 +82,7 @@ export function createKeyService({ config, db, vsz, log }) {
   async function reset(id, { by }) {
     const row = db.getKeyRow(id);
     if (!row) return null;
+    if (row.shared) throw new KeyError("A key for several devices isn't tied to one device, so there's nothing to reset.");
     const remote = await vsz.getKey(id);
     if (!remote) {
       db.removeKey(id);
@@ -123,12 +128,13 @@ export function createKeyService({ config, db, vsz, log }) {
       if (known.has(key.id)) continue;
       const guest = guestFromVszName(key.userName);
       if (guest) {
-        db.addKey({ id: key.id, email: guest.email, label: guest.label, vlanId: key.vlanId ?? null, rule: 'Guest', kind: 'guest', expires: Date.now() + 86_400_000, createdBy: by });
+        const shared = key.groupDpsk === true;
+        db.addKey({ id: key.id, email: guest.email, label: guest.label, vlanId: key.vlanId ?? null, rule: 'Guest', kind: 'guest', expires: Date.now() + 86_400_000, createdBy: by, shared });
+        if (!shared && key.macAddress) db.setKeyMac(key.id, key.macAddress);
       } else {
         skipped++;
         continue;
       }
-      if (key.macAddress) db.setKeyMac(key.id, key.macAddress);
       adopted++;
     }
     log('keys_adopted', { adopted, skipped, by });
@@ -147,7 +153,7 @@ export function createKeyService({ config, db, vsz, log }) {
         db.removeKey(row.id);
         summary.missing++;
         log('key_missing', { label: row.label, kind: row.kind, reason: 'deleted on the vSZ' });
-      } else if (key.macAddress && key.macAddress !== row.mac) {
+      } else if (!row.shared && key.macAddress && key.macAddress !== row.mac) {
         db.setKeyMac(row.id, key.macAddress);
       }
     }

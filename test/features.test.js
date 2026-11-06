@@ -87,6 +87,33 @@ describe('guest key tools', () => {
     assert.ok(adopted.expires < Date.now() + 86_400_001);
   });
 
+  test('a key for several devices is a Group DPSK, never tied to one device', async () => {
+    const r = await h.api(a, '/guests', { name: 'Sports day visitors', days: 1, shared: true });
+    assert.ok(r.json.id, JSON.stringify(r.json));
+    assert.equal(h.vsz.keys.get(r.json.id).groupDpsk, true);
+    assert.equal(h.db.getKeyRow(r.json.id).shared, 1);
+    h.vsz.bind(r.json.id, 'AA:AA:AA:AA:AA:09');
+    await h.keys.sync({ by: 'test' });
+    assert.equal(h.db.getKeyRow(r.json.id).mac, null, 'a group key shows no single device');
+    assert.match((await h.api(a, `/keys/${r.json.id}/reset`)).json.problems[0], /isn't tied to one device/);
+    const slip = await h.req(`/admin/print?ids=${r.json.id}`, { cookie: a.cookie });
+    assert.match(slip.text, /on as many devices as they need/);
+    assert.equal(h.vsz.keys.get((await h.api(a, '/guests', { name: 'One visitor', days: 1 })).json.id).groupDpsk, false);
+  });
+
+  test('a vSZ that makes a one-device key instead is caught, and the key removed', async () => {
+    h.vsz.setGroupSupport(false);
+    try {
+      const before = h.vsz.keys.size;
+      const r = await h.api(a, '/guests', { name: 'Open day', days: 1, shared: true });
+      assert.match(r.json.problems[0], /one-device key instead/);
+      assert.equal(h.vsz.keys.size, before, 'nothing left behind on the vSZ');
+      assert.ok(!h.db.keysOfKind('guest').some((k) => k.label === 'Open day'));
+    } finally {
+      h.vsz.setGroupSupport(true);
+    }
+  });
+
   test('guest key names are ones the vSZ accepts, whatever the guest is called', async () => {
     const valid = /^[A-Za-z0-9\-_.@#$]{2,64}$/;
     const names = ['Mrs Botha', 'Zoë (from DoE)', 'Dr. O\'Neil-Smith', '!!!', 'A'.repeat(40), '王小明'];

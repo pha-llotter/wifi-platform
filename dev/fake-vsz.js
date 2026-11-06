@@ -12,6 +12,7 @@ export function createFakeVsz({ port = 0, username = 'api', password = 'api-pass
   const tickets = new Set();
   const keys = new Map();
   const calls = [];
+  let supportsGroup = true;
   const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const genPassphrase = () => Array.from(crypto.randomBytes(16), (b) => alphabet[b % alphabet.length]).join('');
   const dpskBase = `/rkszones/${zoneId}/wlans/${wlanId}/dpsk`;
@@ -63,7 +64,8 @@ export function createFakeVsz({ port = 0, username = 'api', password = 'api-pass
           userName: body.userName,
           passphrase,
           vlanId: body.vlanId ?? null,
-          groupDpsk: false,
+          // supportsGroup = false stands in for a vSZ that ignores the option.
+          groupDpsk: body.groupDpsk === true && supportsGroup,
           macAddress: null,
           wlanId,
           creationDateTime: Date.now(),
@@ -103,6 +105,10 @@ export function createFakeVsz({ port = 0, username = 'api', password = 'api-pass
       keys.get(id).macAddress = mac;
     },
     expireTickets: () => tickets.clear(),
+    /** false: behave like a vSZ that ignores groupDpsk and makes one-device keys. */
+    setGroupSupport: (on) => {
+      supportsGroup = on;
+    },
     listen: () => new Promise((resolve) => server.listen(port, '127.0.0.1', () => resolve(server.address().port))),
     close: () => server.close(),
   };
