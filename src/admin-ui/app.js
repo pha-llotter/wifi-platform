@@ -215,6 +215,23 @@ function devicesTable(rows, { withPerson = true, empty = 'No logins yet.' } = {}
     .join('')}</tbody></table></div>`;
 }
 
+function rememberedTable(rows) {
+  if (!rows.length) return '<p class="empty">None. A device is remembered when it signs in on the page.</p>';
+  return `<div class="table-wrap"><table class="data compact"><thead><tr>
+    <th>Device</th><th>Network</th><th>Signed in on the page</th><th>Last let back in</th><th>Remembered until</th>
+  </tr></thead><tbody>${rows
+    .map(
+      (d) => `<tr>
+      <td class="mono">${h(d.mac)}</td>
+      <td>${dash(d.ssid)}</td>
+      <td>${when(d.first)}</td>
+      <td>${d.last > d.first ? when(d.last) : '<span class="faint">Not yet</span>'}</td>
+      <td>${when(d.expires)}</td>
+    </tr>`,
+    )
+    .join('')}</tbody></table></div>`;
+}
+
 function keysTable(rows, { empty }) {
   if (!rows.length) return `<p class="empty">${h(empty)}</p>`;
   return `<div class="table-wrap"><table class="data compact"><thead><tr>
@@ -279,6 +296,16 @@ function healthChecks(hl) {
   else if (r?.lastAccept) items.push(['warn', 'No usage reports yet', 'Add a RADIUS accounting service (port 1813) to the Nexus WLAN on the vSZ to see data used per person.']);
   else if (r?.lastRequest) items.push(['warn', `No successful logins on ${me.schoolSsid} yet`, `FreeRADIUS last asked ${ago(r.lastRequest)}. Check Activity for why logins were turned away.`]);
   else items.push(['warn', 'FreeRADIUS hasn’t called yet', 'Expected after the first login attempt. If people can’t connect, check the FreeRADIUS container and its logs.']);
+
+  // Returning devices: the vSZ asks about each one (MAC authentication) before showing the page.
+  const rt = r?.returning;
+  if (rt) {
+    const misses = rt.recent.filter((c) => c.result !== 'accepted' && c.at > (rt.lastOk ?? 0)).slice(0, 3);
+    const missText = misses.map((c) => `${c.mac} ${c.result} ${ago(c.at)}`).join('; ');
+    if (rt.lastOk) items.push(['ok', 'Remembered devices reconnect without the sign-in page', `Last one ${ago(rt.lastOk)}.${misses.length ? ` Sent to the page since then: ${missText}.` : ''}`]);
+    else if (misses.length) items.push(['info', 'No remembered device has reconnected yet', `The vSZ is asking about returning devices, but none was remembered: ${missText}. A phone with a rotating private address looks new each time.`]);
+    else if (r.lastAccept) items.push(['warn', "The vSZ hasn't asked about a returning device", 'Not since the platform last started. If phones see the sign-in page whenever they come back, turn on MAC authentication bypass on both school WLANs (setup guide 4.6).']);
+  }
 
   if (!hl.directory) items.push(['warn', 'Directory lookup is off', 'Org-unit rules and suspended-account checks need it. Turn on google.directory in config.json.']);
 
@@ -546,6 +573,7 @@ async function person(email) {
   }
   <div class="stack">
     <section class="panel"><div class="panel-head"><div><h2>Devices</h2><p class="muted">Every device that has logged in with this account</p></div></div>${devicesTable(p.devices, { withPerson: false, empty: 'No logins yet.' })}</section>
+    <section class="panel"><div class="panel-head"><div><h2>Remembered devices</h2><p class="muted">Let back on without the sign-in page until the date shown. If a phone gets the page again, compare its Wi-Fi address (Settings → Wi-Fi → ⓘ) with this list.</p></div></div>${rememberedTable(p.remembered ?? [])}</section>
     ${personUsageSection(p.usage)}
     <section class="panel"><div class="panel-head"><h2>History</h2><p class="muted">Latest 100 events</p></div>${eventsTable(p.events, { withPerson: false })}</section>
   </div>`;

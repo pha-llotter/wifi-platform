@@ -32,7 +32,7 @@ export function createRadiusApi({ config, db, access, settings, tickets = null, 
   const cfg = config.radius;
   const expected = Buffer.from(`radius:${cfg.apiToken}`).toString('base64');
   const refused = new TtlMap(); // logins this API refused, so the reject callback doesn't log them twice
-  const status = { lastRequest: null, lastAccept: null, lastReject: null, lastAccounting: null };
+  const status = { lastRequest: null, lastAccept: null, lastReject: null, lastAccounting: null, returning: { lastOk: null, recent: [] } };
 
   function allowed(req) {
     const ip = (req.socket.remoteAddress ?? '').replace(/^::ffff:/, '');
@@ -109,6 +109,14 @@ export function createRadiusApi({ config, db, access, settings, tickets = null, 
   const refuse = (res, message) => reply(res, 401, { 'reply:Reply-Message': String(message).replace(/%/g, ' percent') });
   const noSsidWarned = new TtlMap();
 
+  // What the vSZ asked about returning devices (MAC authentication) and the answer, for
+  // the Health panel: whether it asks at all, and why a device was sent to the page.
+  function returning(mac, result) {
+    const at = Date.now();
+    if (result === 'accepted') status.returning.lastOk = at;
+    status.returning.recent = [{ at, mac: normalizeMac(mac), result }, ...status.returning.recent].slice(0, 8);
+  }
+
   async function portal(res, body) {
     const user = String(attr(body, 'User-Name') ?? '').trim();
     const pass = String(attr(body, 'User-Password') ?? '');
@@ -122,11 +130,15 @@ export function createRadiusApi({ config, db, access, settings, tickets = null, 
     let device = null;
     if (remembering) {
       device = db.portalDevice(mac ?? user);
-      if (!device) return refuse(res, 'Sign in on the page that opens.'); // a new device: nothing to log
+      if (!device) {
+        returning(mac ?? user, 'not remembered'); // a new device, or one whose address changed
+        return refuse(res, 'Sign in on the page that opens.');
+      }
       if (!ssid) {
         // Without the SSID a student's remembered phone could get on to the staff network.
         if (!noSsidWarned.get('x')) log('portal_ssid_error', { error: 'the vSZ sent no SSID in Called-Station-Id, so remembered devices must sign in again (see the README)' });
         noSsidWarned.set('x', true, 3600_000);
+        returning(mac ?? user, 'no network name from the vSZ');
         return refuse(res, 'Sign in on the page that opens.');
       }
       email = device.email;
@@ -149,18 +161,25 @@ export function createRadiusApi({ config, db, access, settings, tickets = null, 
     }
     if (!decision.allow) {
       // Someone blocked, suspended or no longer in a rule loses their remembered devices.
-      if (device) db.forgetDevices(email);
+      if (device) {
+        db.forgetDevices(email);
+        returning(mac ?? user, 'refused: ' + decision.reason);
+      }
       log('denied', { email, mac, reason: decision.reason, orgUnit: decision.orgUnitPath });
       return refuse(res, decision.rule?.message ?? "This account can't use the school WiFi.");
     }
     const net = checkNetwork(config.portal.networks, decision, ssid);
     if (!net.ok) {
+      if (device) returning(mac ?? user, 'refused: ' + net.reason);
       log('denied', { email, mac, reason: net.reason, orgUnit: decision.orgUnitPath });
       return refuse(res, net.message);
     }
 
     const who = decision.email ?? email;
-    if (device) db.touchDevice(mac ?? user);
+    if (device) {
+      db.touchDevice(mac ?? user);
+      returning(mac ?? user, 'accepted');
+    }
     else if (config.portal.rememberDays > 0 && mac) db.rememberDevice({ mac, email: who, ssid: net.ssid }, config.portal.rememberDays);
     status.lastAccept = Date.now();
     const first = db.recordLogin({ email: who, mac, vlanId: net.vlanId, rule: decision.rule?.name ?? null, ap });

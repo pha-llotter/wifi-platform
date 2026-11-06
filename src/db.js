@@ -303,6 +303,7 @@ export function openDb(file) {
       email: e,
       blocked: q('SELECT * FROM blocked WHERE email = ?').get(e) ?? null,
       devices: q('SELECT * FROM logins WHERE email = ? ORDER BY last DESC').all(e),
+      remembered: devicesOf(e),
       events: events({ email: e, limit: 100 }),
     };
   }

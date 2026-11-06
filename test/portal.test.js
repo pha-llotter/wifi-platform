@@ -273,6 +273,17 @@ describe('RADIUS for the sign-in networks', () => {
     assert.equal(h.events.filter((x) => x.event === 'denied').length, 0, 'an unknown device is not an incident');
   });
 
+  test('each returning-device check and its answer is kept for the Health panel', async () => {
+    await signIn('Nexus', 'pupil@school.org', 'pupil-pass');
+    await reconnect('Nexus');
+    await reconnect('Nexus', '02-00-00-00-09-0A');
+    const rt = h.radiusApi.status().returning;
+    assert.ok(rt.lastOk);
+    assert.deepEqual(rt.recent.slice(0, 2).map((c) => [c.mac, c.result]), [['02:00:00:00:09:0a', 'not remembered'], [h.db.portalDevice(h.mac).mac, 'accepted']]);
+    assert.ok(h.db.portalDevice(h.mac).last >= h.db.portalDevice(h.mac).first, 'the person page shows when it was let back in');
+    assert.equal(h.db.person('pupil@school.org').remembered[0].mac, h.db.portalDevice(h.mac).mac);
+  });
+
   test("a student's remembered phone can't use the staff network", async () => {
     await signIn('Nexus', 'pupil@school.org', 'pupil-pass');
     assert.equal((await reconnect('Nexus Staff')).status, 401);
