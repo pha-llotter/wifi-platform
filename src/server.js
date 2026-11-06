@@ -5,7 +5,6 @@ import { createAccess } from './access.js';
 import { createAdmin } from './admin.js';
 import { createAlerts } from './alerts.js';
 import { createApp } from './app.js';
-import { createBrowsing } from './browsing.js';
 import { createChecks } from './checks.js';
 import { loadConfig } from './config.js';
 import { openDb } from './db.js';
@@ -90,18 +89,11 @@ function backupNow() {
     throw err;
   }
 }
-// Sites visited, from the school firewall's syslog (off unless browsing.enabled).
-const browsing = createBrowsing({ config, db, log });
-await browsing.start();
-
-const platform = {
-  backupNow,
-  status: () => ({ backup: lastBackup, alerts: alerts.status, radius: radiusApi.status(), browsing: config.browsing.enabled ? browsing.status() : null }),
-};
+const platform = { backupNow, status: () => ({ backup: lastBackup, alerts: alerts.status, radius: radiusApi.status() }) };
 
 const vsz = createVszClient(config.dpsk);
 const keys = createKeyService({ config, db, vsz, log });
-platform.checks = createChecks({ config, directory, mailer, vsz, nbi, drive, radiusStatus: radiusApi.status, browsingStatus: browsing.status });
+platform.checks = createChecks({ config, directory, mailer, vsz, nbi, drive, radiusStatus: radiusApi.status });
 const admin = createAdmin({ config, db, settings, keys, access, platform, log });
 const app = createApp({ admin, radiusApi, portal, log });
 
@@ -131,8 +123,7 @@ const soon = (ms, fn) => setTimeout(fn, ms).unref();
 
 const purge = () => {
   const removed = db.purge(settings.current().retentionDays);
-  if (config.browsing.enabled) removed.browsing = db.purgeBrowsing(config.browsing.retentionDays);
-  if (removed.events || removed.logins || removed.browsing) fileLog('purged', removed);
+  if (removed.events || removed.logins) fileLog('purged', removed);
 };
 purge();
 every(6 * 3600_000, purge);
@@ -164,7 +155,6 @@ log('started', {
   guestSsid: config.dpsk.ssid,
   vszSecurity: vsz.health.security,
   directory: Boolean(directory),
-  browsing: config.browsing.enabled ? { port: browsing.port(), vlans: config.browsing.vlans, retentionDays: config.browsing.retentionDays } : false,
   alerts: alerts.status.enabled,
   admins: config.admin.emails.length,
 });
@@ -175,7 +165,6 @@ function shutdown() {
   vsz.close();
   radiusApi.close();
   portal.close();
-  browsing.close();
   tickets.close();
   admin.close();
   for (const s of servers) s.close();

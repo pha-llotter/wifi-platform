@@ -67,22 +67,6 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 CREATE INDEX IF NOT EXISTS sessions_who ON sessions(who, started);
 CREATE INDEX IF NOT EXISTS sessions_open ON sessions(stopped, updated);
-CREATE INDEX IF NOT EXISTS sessions_ip ON sessions(ip, started);
-
--- Sites visited, from the school firewall's web filter or DNS logs (browsing.js), per
--- person, device, site and hour. site is the site's own name (youtube.com), not the page.
-CREATE TABLE IF NOT EXISTS browsing (
-  hour INTEGER NOT NULL,
-  who TEXT NOT NULL,
-  mac TEXT NOT NULL,
-  site TEXT NOT NULL,
-  category TEXT,
-  first INTEGER NOT NULL,
-  last INTEGER NOT NULL,
-  hits INTEGER NOT NULL DEFAULT 0,
-  PRIMARY KEY (hour, who, mac, site)
-);
-CREATE INDEX IF NOT EXISTS browsing_who ON browsing(who, hour);
 
 -- Data used per person, device and day (the server's local date).
 CREATE TABLE IF NOT EXISTS usage_daily (
@@ -118,6 +102,11 @@ CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+-- Sites visited (from the firewall's logs) was removed on 2026-11-06. Its records are
+-- personal information, so a database that had them loses them on the next start.
+DROP TABLE IF EXISTS browsing;
+DROP INDEX IF EXISTS sessions_ip;
 `;
 
 const CATEGORY = {
@@ -384,50 +373,6 @@ export function openDb(file) {
   const forgetDevice = (mac) => Number(q('DELETE FROM portal_devices WHERE mac = ?').run(normalizeMac(mac)).changes);
   const devicesOf = (email) => q('SELECT * FROM portal_devices WHERE email = ? ORDER BY last DESC').all(String(email).toLowerCase());
 
-  /**
-   * Who had this device address at this moment, from the accounting sessions: the latest
-   * session that had started by then and hadn't ended (or been silent too long) before it.
-   */
-  function whoHadIp(ip, at, staleMs = 30 * 60_000) {
-    return (
-      q(`SELECT s.who, s.mac, l.vlan_id FROM sessions s LEFT JOIN logins l ON l.email = s.who AND l.mac = s.mac
-        WHERE s.ip = ? AND s.started <= ? AND COALESCE(s.stopped, s.updated + ?) >= ?
-        ORDER BY s.started DESC LIMIT 1`).get(ip, at + 60_000, staleMs, at - 60_000) ?? null
-    );
-  }
-
-  const addBrowsingRow = q(`INSERT INTO browsing (hour, who, mac, site, category, first, last, hits) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(hour, who, mac, site) DO UPDATE SET first = MIN(first, excluded.first), last = MAX(last, excluded.last),
-      hits = hits + excluded.hits, category = COALESCE(excluded.category, category)`);
-  /** Adds grouped visits: [{ hour, who, mac, site, category, first, last, hits }], in one transaction. */
-  function addBrowsing(rows) {
-    if (!rows.length) return;
-    db.exec('BEGIN');
-    try {
-      for (const r of rows) addBrowsingRow.run(r.hour, r.who, r.mac, r.site, r.category ?? null, r.first, r.last, r.hits);
-      db.exec('COMMIT');
-    } catch (err) {
-      db.exec('ROLLBACK');
-      throw err;
-    }
-  }
-
-  /** One person's sites between two moments, busiest first. */
-  const personSites = (who, from, to) =>
-    q(`SELECT site, MAX(category) AS category, MIN(first) AS first, MAX(last) AS last, SUM(hits) AS hits,
-        COUNT(DISTINCT hour) AS hours, COUNT(DISTINCT mac) AS devices
-      FROM browsing WHERE who = ? AND hour >= ? AND hour < ? GROUP BY site ORDER BY SUM(hits) DESC LIMIT 500`).all(String(who).toLowerCase(), from, to);
-
-  /** The days (local dates) a person has sites recorded on, newest first. */
-  const browsingDays = (who) => [...new Set(q('SELECT DISTINCT hour FROM browsing WHERE who = ? ORDER BY hour DESC').all(String(who).toLowerCase()).map((r) => dayOf(r.hour)))];
-
-  /** The school's most visited sites between two moments. */
-  const topSites = (from, to, limit = 50) =>
-    q(`SELECT site, MAX(category) AS category, COUNT(DISTINCT who) AS people, SUM(hits) AS hits
-      FROM browsing WHERE hour >= ? AND hour < ? GROUP BY site ORDER BY COUNT(DISTINCT who) DESC, SUM(hits) DESC LIMIT ?`).all(from, to, limit);
-
-  const purgeBrowsing = (days, now = Date.now()) => Number(q('DELETE FROM browsing WHERE last < ?').run(now - days * 86_400_000).changes);
-
   /** Removes events and device records older than the retention period. */
   function purge(retentionDays, now = Date.now()) {
     const cutoff = now - retentionDays * 86_400_000;
@@ -480,12 +425,6 @@ export function openDb(file) {
     devicesOf,
     backup,
     purge,
-    whoHadIp,
-    addBrowsing,
-    personSites,
-    browsingDays,
-    topSites,
-    purgeBrowsing,
     close: () => db.close(),
   };
 }

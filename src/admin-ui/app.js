@@ -523,21 +523,10 @@ async function person(email) {
   <div class="stack">
     <section class="panel"><div class="panel-head"><div><h2>Devices</h2><p class="muted">Every device that has logged in with this account</p></div></div>${devicesTable(p.devices, { withPerson: false, empty: 'No logins yet.' })}</section>
     ${personUsageSection(p.usage)}
-    ${
-      me.browsing?.canView
-        ? `<section class="panel" id="sites"><div class="panel-head"><div><h2>Sites visited</h2><p class="muted">Site names from the school firewall, not pages. Kept ${h(me.browsing.retentionDays)} days. Opening this is recorded in Activity.</p></div><button class="btn btn-sm" id="show-sites" type="button">Show sites</button></div><div class="sites-body"></div></section>`
-        : ''
-    }
     <section class="panel"><div class="panel-head"><h2>History</h2><p class="muted">Latest 100 events</p></div>${eventsTable(p.events, { withPerson: false })}</section>
   </div>`;
 
   sizeBars(view);
-  if ($('#show-sites')) {
-    $('#show-sites').onclick = () => {
-      $('#show-sites').hidden = true;
-      personSites(p.email);
-    };
-  }
   const form = $('#block-form');
   if ($('#block')) {
     $('#block').onclick = () => {
@@ -559,29 +548,6 @@ async function person(email) {
       person(p.email);
     };
   }
-}
-
-async function personSites(email, day = null) {
-  const d = await api(`/people/${encodeURIComponent(email)}/sites${day ? `?day=${day}` : ''}`);
-  const body = $('#sites .sites-body');
-  if (!body) return;
-  const dayLabel = (x) => new Date(`${x}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
-  const time = (ms) => new Date(ms).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  body.innerHTML = `${
-    d.days.length
-      ? `<div class="panel-body"><div class="chips" role="group" aria-label="Day">${d.days
-          .slice(0, 14)
-          .map((x) => `<button type="button" class="chip" data-day="${h(x)}" aria-pressed="${x === d.day}">${h(dayLabel(x))}</button>`)
-          .join('')}</div></div>`
-      : ''
-  }${
-    d.sites.length
-      ? `<div class="table-wrap"><table class="data compact"><thead><tr><th>Site</th><th>Category</th><th>Time</th><th class="num">Requests</th></tr></thead><tbody>${d.sites
-          .map((s) => `<tr><td class="mono">${h(s.site)}</td><td>${dash(s.category)}</td><td class="nowrap">${h(time(s.first))}${s.last - s.first >= 60_000 ? ` – ${h(time(s.last))}` : ''}</td><td class="num">${num(s.hits)}</td></tr>`)
-          .join('')}</tbody></table></div>`
-      : `<p class="empty">No sites recorded ${d.days.length ? 'on this day' : 'for this person yet'}.</p>`
-  }`;
-  for (const b of $('[data-day]', body)) b.onclick = () => personSites(email, b.dataset.day);
 }
 
 function personUsageSection(u) {
@@ -620,7 +586,7 @@ async function usage() {
   const over = d.alertGb ? d.top.filter((r) => r.down + r.up >= d.alertGb * 1024 ** 3).length : 0;
   view.innerHTML = `
   <div class="page-head">
-    <div><h1>Usage</h1><p class="muted">Data used on the WiFi, from the vSZ's accounting reports${d.accounting ? ` · last report ${h(ago(d.accounting))}` : ''}. ${me.browsing?.enabled ? '' : ' Shows how much, not which sites.'}</p></div>
+    <div><h1>Usage</h1><p class="muted">Data used on the WiFi, from the vSZ's accounting reports${d.accounting ? ` · last report ${h(ago(d.accounting))}` : ''}. Shows how much, not which sites.</p></div>
     <div class="chips" role="group" aria-label="Period">${['today', 'week', 'month']
       .map((p) => `<button type="button" class="chip" data-period="${p}" aria-pressed="${d.period === p}">${{ today: 'Today', week: '7 days', month: '30 days' }[p]}</button>`)
       .join('')}</div>
@@ -652,7 +618,6 @@ async function usage() {
           : '<p class="empty">Nothing yet.</p>'
       }
     </section>
-    ${me.browsing?.canView ? `<section class="panel" id="top-sites"><div class="panel-head"><div><h2>Top sites · ${h(label)}</h2><p class="muted">The sites the most people visited, from the school firewall's logs</p></div></div><div class="sites-body"><p class="empty">Loading…</p></div></section>` : ''}
     <section class="panel">
       <div class="panel-head"><div><h2>Online now</h2><p class="muted">Sessions the vSZ reported in the last ${h(me.staleMinutes)} minutes</p></div></div>
       ${
@@ -671,19 +636,7 @@ async function usage() {
     };
   }
   sizeBars(view);
-  if (me.browsing?.canView) topSites(d.period);
   refreshTimer = setTimeout(usage, 60_000);
-}
-
-async function topSites(period) {
-  const d = await api(`/sites?period=${period}`);
-  const body = $('#top-sites .sites-body');
-  if (!body) return;
-  body.innerHTML = d.top.length
-    ? `<div class="table-wrap"><table class="data compact"><thead><tr><th>Site</th><th>Category</th><th class="num">People</th><th class="num">Requests</th></tr></thead><tbody>${d.top
-        .map((r) => `<tr><td class="mono">${h(r.site)}</td><td>${dash(r.category)}</td><td class="num">${num(r.people)}</td><td class="num">${num(r.hits)}</td></tr>`)
-        .join('')}</tbody></table></div>`
-    : `<p class="empty">${d.collector?.lastMessage ? 'No visits matched to people in this period yet.' : "No logs from the firewall yet. Settings → Check connections shows what's arriving."}</p>`;
 }
 
 /* ---------- guests ---------- */

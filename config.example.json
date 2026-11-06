@@ -42,15 +42,6 @@
     }
   },
 
-  "browsing": {
-    "enabled": false,
-    "allowFrom": ["the school's public IP, where the firewall's syslog comes from"],
-    "listen": { "port": 5514 },
-    "retentionDays": 30,
-    "vlans": [],
-    "viewers": []
-  },
-
   "dpsk": {
     "ssid": "Guest",
     "host": "203.0.113.10",

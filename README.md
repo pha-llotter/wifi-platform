@@ -182,17 +182,6 @@ Everything is kept in `/var/lib/wifi-portal/wifi-portal.db`, with a copy every n
 - **The alert:** set a **daily usage alert** under Settings (or `usage.alertGb` in config) and IT gets an email, plus an entry in Activity → High usage, the first time someone passes it each day.
 - **Privacy:** usage is personal information under POPIA. It follows the same `retentionDays` as everything else and is visible only to dashboard admins.
 
-## Sites visited (optional)
-
-With `browsing.enabled`, the platform records which **sites** each person visits, from the school firewall's logs. It shows site names only (youtube.com), not pages, and it doesn't decrypt anything, so devices need no certificate.
-
-- **How it works:** the firewall (a FortiGate's web filter or DNS filter) sends its log lines by syslog to the platform on TCP or UDP `browsing.listen.port` (5514), accepted only from `browsing.allowFrom`. Each line carries the device's address and the site. The platform matches the address to the person who had it at that moment, from the vSZ's accounting, and stores visits per person, device, site and hour ([src/browsing.js](src/browsing.js)).
-- **Who is recorded:** `browsing.vlans` lists the VLANs to record, for example `[10]` for learners only. Empty records everyone signed in, guests included.
-- **Who can see it:** `browsing.viewers` lists the admins who may see sites. Empty means every dashboard admin. Sites load only when an admin clicks **Show sites** on a person's page, and each look is written to Activity (who looked at whose sites, for which day). **Usage → Top sites** shows the school's most visited sites.
-- **How long:** `browsing.retentionDays` (30 by default), then deleted.
-- **Telling people:** turning it on changes the connection guide's privacy note to say websites are recorded. Make sure the school's ICT or acceptable-use policy says so too (POPIA, and RICA for staff).
-- **Checking it:** **Settings → Check connections** shows when the last log arrived and how many visits were matched to people.
-
 ## If something is down
 
 - **The platform** (`wifi-portal`) down: FreeRADIUS follows `FALLBACK_VLAN`. Empty means no new logins; a VLAN number lets anyone with a correct Google password on to that VLAN, with blocks and rules skipped until the platform is back. Devices that are already connected stay connected either way.
