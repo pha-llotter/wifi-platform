@@ -10,6 +10,7 @@ import crypto from 'node:crypto';
 import { checkNetwork, normalizeUsername, ssidFromCalledStation } from './access.js';
 import { ipAllowed } from './admin.js';
 import { normalizeMac } from './db.js';
+import { guestDisplayName, guestFromVszName } from './keys.js';
 import { TtlMap } from './store.js';
 
 const isMac = (s) => /^([0-9a-f]{2}[-:.]?){5}[0-9a-f]{2}$/i.test(String(s ?? '').trim());
@@ -184,11 +185,13 @@ export function createRadiusApi({ config, db, access, settings, tickets = null, 
 
   // Whose usage this is: the login name the vSZ reports (set from the Access-Accept), or
   // for an "anonymous" outer identity, whoever last logged in from that device. Guest
-  // keys on the guest SSID report the key's name, e.g. "guest: Mrs Botha (it@…)".
+  // keys on the guest SSID report the key's vSZ name ("guest#Mrs_Botha#it@…"), counted
+  // as "guest: Mrs Botha (it@…)" whichever form the key was made with.
   function accountFor(body) {
     const raw = String(attr(body, 'User-Name') ?? '').trim();
     const mac = attr(body, 'Calling-Station-Id') || null;
-    if (/^guest: /i.test(raw)) return raw;
+    const guest = guestFromVszName(raw);
+    if (guest) return guestDisplayName(guest);
     // A remembered device's session may be reported under its MAC.
     if (isMac(raw)) return db.portalDevice(raw)?.email ?? db.lastLoginByMac(raw) ?? `unknown device ${mac ?? raw}`;
     const email = normalizeUsername(raw, cfg.defaultDomain);

@@ -50,6 +50,10 @@ export function createFakeVsz({ port = 0, username = 'api', password = 'api-pass
         return reply(res, 200, { totalCount: 1, hasMore: false, list: [{ id: wlanId, name: ssid, ssid }] });
       }
       if (path === `${dpskBase}/batchGenUnbound` && req.method === 'POST') {
+        // The real vSZ's rule for a DPSK user name (an HTTP 422 from the live controller).
+        if (!/^[A-Za-z0-9\-_.@#$]{2,64}$/.test(String(body.userName ?? ''))) {
+          return reply(res, 422, { errorCode: 101, message: `The userName '${body.userName}' is invalid. Accept characters: [A-Z, a-z, 0-9, -, _, ., @, #, $] and the length must be between 2 ~ 64` });
+        }
         const passphrase = body.passphraseList?.[0] ?? genPassphrase();
         if ([...keys.values()].some((k) => k.passphrase === passphrase)) {
           return reply(res, 422, { errorCode: 302, message: 'passphrase is already existed' });

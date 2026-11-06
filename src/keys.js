@@ -2,6 +2,38 @@
 // date. The vSZ binds each key to the first device that uses it.
 export class KeyError extends Error {}
 
+/**
+ * A guest key's user name on the vSZ, which allows only A-Z a-z 0-9 - _ . @ # $ and
+ * 2 to 64 characters: "guest#Mrs_Botha#it@school.org". "#" never appears inside the
+ * parts, so the name and the email can be read back (guestFromVszName).
+ */
+export function vszGuestName(name, by) {
+  const clean = (s) => String(s ?? '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '') // Zoë → Zoe
+    .replace(/[^A-Za-z0-9\-_.@$]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  const email = clean(by).slice(0, 40);
+  const room = 64 - 'guest##'.length - email.length;
+  const label = clean(name).slice(0, room).replace(/_+$/, '') || 'visitor';
+  return `guest#${label}#${email}`;
+}
+
+/**
+ * { label, email } from a guest key's vSZ user name, or null when it isn't one. Reads
+ * both the current form and the older "guest: Mrs Botha (it@school.org)".
+ */
+export function guestFromVszName(userName) {
+  const raw = String(userName ?? '').trim();
+  const old = raw.match(/^guest: (.+?) \((.+)\)$/i);
+  if (old) return { label: old[1], email: old[2] };
+  const now = raw.match(/^guest#([^#]+)#([^#]*)$/i);
+  if (now) return { label: now[1].replace(/_/g, ' '), email: now[2] };
+  return null;
+}
+
+/** How a guest key is shown in usage and Activity: "guest: Mrs Botha (it@school.org)". */
+export const guestDisplayName = ({ label, email }) => `guest: ${label} (${email})`;
+
 export function createKeyService({ config, db, vsz, log }) {
   let lastSync = null;
   let syncing = null;
@@ -22,7 +54,7 @@ export function createKeyService({ config, db, vsz, log }) {
     const expires = Date.now() + d * 86_400_000;
     const key = await create(
       { email: by, label: guestName, vlanId: cfg.guestVlanId, rule: 'Guest', kind: 'guest', expires, createdBy: by },
-      `guest: ${guestName} (${by})`,
+      vszGuestName(guestName, by),
     );
     log('key_issued', { label: guestName, kind: 'guest', vlanId: cfg.guestVlanId, expires, by });
     return key;
@@ -89,10 +121,9 @@ export function createKeyService({ config, db, vsz, log }) {
     let skipped = 0;
     for (const key of await vsz.listKeys()) {
       if (known.has(key.id)) continue;
-      const name = String(key.userName ?? '');
-      const guest = name.match(/^guest: (.+?) \((.+)\)$/);
+      const guest = guestFromVszName(key.userName);
       if (guest) {
-        db.addKey({ id: key.id, email: guest[2], label: guest[1], vlanId: key.vlanId ?? null, rule: 'Guest', kind: 'guest', expires: Date.now() + 86_400_000, createdBy: by });
+        db.addKey({ id: key.id, email: guest.email, label: guest.label, vlanId: key.vlanId ?? null, rule: 'Guest', kind: 'guest', expires: Date.now() + 86_400_000, createdBy: by });
       } else {
         skipped++;
         continue;

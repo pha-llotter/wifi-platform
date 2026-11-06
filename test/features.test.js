@@ -8,6 +8,7 @@ import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { createAlerts } from '../src/alerts.js';
 import { openDb } from '../src/db.js';
+import { guestFromVszName, vszGuestName } from '../src/keys.js';
 import { createVszClient } from '../src/vsz.js';
 import { startPlatform } from './helpers.js';
 
@@ -26,7 +27,7 @@ describe('guest keys', () => {
     assert.equal(row.kind, 'guest');
     assert.equal(row.vlan_id, 50);
     assert.ok(row.expires > Date.now() + 2.9 * 86_400_000 && row.expires < Date.now() + 3.1 * 86_400_000);
-    assert.equal(h.vsz.keys.get(r.json.id).userName, 'guest: Mrs Botha (it@school.org)');
+    assert.equal(h.vsz.keys.get(r.json.id).userName, 'guest#Mrs_Botha#it@school.org');
     assert.match((await h.api(a, '/guests', { name: 'Too long', days: 30 })).json.problems[0], /from 1 to 7 days/);
 
     h.db.removeKey(row.id);
@@ -74,15 +75,32 @@ describe('guest key tools', () => {
       body: JSON.stringify({ username: h.vsz.config.username, password: h.vsz.config.password }),
     });
     const { serviceTicket } = await res.json();
-    for (const userName of ['guest: Mr Dube (it@school.org)', 'made by hand']) {
+    for (const userName of ['guest#Mr_Dube#it@school.org', 'guest#Ms_Old#it@school.org', 'made_by_hand']) {
       await fetch(`http://127.0.0.1:${h.config.dpsk.port}/wsg/api/public/v9_1/rkszones/zone-1/wlans/wlan-1/dpsk/batchGenUnbound?serviceTicket=${serviceTicket}`, {
         method: 'POST',
         body: JSON.stringify({ amount: 1, userName }),
       });
     }
-    assert.deepEqual((await h.api(a, '/adopt')).json, { adopted: 1, skipped: 1 });
+    assert.deepEqual((await h.api(a, '/adopt')).json, { adopted: 2, skipped: 1 });
     const adopted = h.db.keysOfKind('guest').find((k) => k.label === 'Mr Dube');
+    assert.equal(adopted.email, 'it@school.org');
     assert.ok(adopted.expires < Date.now() + 86_400_001);
+  });
+
+  test('guest key names are ones the vSZ accepts, whatever the guest is called', async () => {
+    const valid = /^[A-Za-z0-9\-_.@#$]{2,64}$/;
+    const names = ['Mrs Botha', 'Zoë (from DoE)', 'Dr. O\'Neil-Smith', '!!!', 'A'.repeat(40), '王小明'];
+    for (const name of names) {
+      const n = vszGuestName(name, 'it-department@phahs.org.za');
+      assert.match(n, valid, `${name} → ${n}`);
+      assert.equal(guestFromVszName(n).email, 'it-department@phahs.org.za');
+    }
+    assert.equal(vszGuestName('Zoë (from DoE)', 'it@school.org'), 'guest#Zoe_from_DoE#it@school.org');
+    assert.deepEqual(guestFromVszName('guest: Mrs Botha (it@school.org)'), { label: 'Mrs Botha', email: 'it@school.org' });
+    assert.equal(guestFromVszName('made by hand'), null);
+    // Through the dashboard against the fake vSZ, which refuses invalid names as the real one does.
+    const r = await h.api(a, '/guests', { name: 'Test (visiting)', days: 1 });
+    assert.ok(r.json.id, JSON.stringify(r.json));
   });
 
   test('the exports are CSV and defuse spreadsheet formulas', async () => {

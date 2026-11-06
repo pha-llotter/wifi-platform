@@ -58,6 +58,9 @@ describe('accounting', () => {
   test('guest keys on the guest SSID are counted under the key name', async () => {
     await acct({ 'User-Name': 'guest: Mrs Botha (it@school.org)', 'Calling-Station-Id': 'AA-BB-CC-00-00-04', 'Acct-Session-Id': 'g1', 'Acct-Status-Type': 'Interim-Update', 'Acct-Output-Octets': '2048' });
     assert.equal(h.db.usageOn('guest: Mrs Botha (it@school.org)', dayOf(Date.now())).down, 2048);
+    // Keys made since the vSZ name fix report the vSZ-safe form; it counts under the same name.
+    await acct({ 'User-Name': 'guest#Mrs_Botha#it@school.org', 'Calling-Station-Id': 'AA-BB-CC-00-00-04', 'Acct-Session-Id': 'g2', 'Acct-Status-Type': 'Interim-Update', 'Acct-Output-Octets': '1024' });
+    assert.equal(h.db.usageOn('guest: Mrs Botha (it@school.org)', dayOf(Date.now())).down, 3072);
   });
 
   test('a controller restart closes its open sessions', async () => {
